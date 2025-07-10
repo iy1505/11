@@ -1,104 +1,104 @@
+import random
 import streamlit as st
-import numpy as np
 
-# オセロの盤面を初期化
-def initialize_board():
-    board = np.zeros((8, 8), dtype=int)
-    board[3, 3] = 1  # 中央に白石
-    board[4, 4] = 1  # 中央に白石
-    board[3, 4] = -1  # 中央に黒石
-    board[4, 3] = -1  # 中央に黒石
-    return board
+# トランプのカードを作成
+suits = ["♥", "♦", "♣", "♠"]
+ranks = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
+values = {"2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "10": 10, "J": 10, "Q": 10, "K": 10, "A": 11}
 
-# 石を反転する処理
-def flip_stones(board, row, col, player):
-    directions = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
-    opponent = -player
-    flipped = []
+# トランプデッキを作成
+def create_deck():
+    deck = [f"{rank}{suit}" for suit in suits for rank in ranks]
+    random.shuffle(deck)
+    return deck
+
+# カードの合計値を計算
+def calculate_hand_value(hand):
+    value = 0
+    aces = 0  # エースの数を追跡
+
+    for card in hand:
+        rank = card[:-1]  # トランプのランク（数字部分）
+        value += values[rank]
+        if rank == "A":
+            aces += 1
     
-    for dr, dc in directions:
-        r, c = row + dr, col + dc
-        to_flip = []
-        
-        # 隣接する石を辿って、反対の色の石を探す
-        while 0 <= r < 8 and 0 <= c < 8 and board[r, c] == opponent:
-            to_flip.append((r, c))
-            r, c = r + dr, c + dc
-        
-        # その方向にプレイヤーの石があれば反転
-        if 0 <= r < 8 and 0 <= c < 8 and board[r, c] == player:
-            flipped.extend(to_flip)
-    
-    # 反転する石を実際に反転
-    for r, c in flipped:
-        board[r, c] = player
-    
-    return flipped
+    # エースが含まれている場合、合計が 21 を超えないように調整
+    while value > 21 and aces:
+        value -= 10
+        aces -= 1
 
-# オセロのプレイが可能かどうかを判定
-def valid_moves(board, player):
-    valid = []
-    for r in range(8):
-        for c in range(8):
-            if board[r, c] == 0:  # 空きマス
-                flipped = flip_stones(board, r, c, player)
-                if flipped:
-                    valid.append((r, c))
-    return valid
+    return value
 
-# ゲーム状態を表示
-def display_board(board):
-    colors = {1: 'white', -1: 'black'}
-    st.write('## Othello Game')
-    
-    # 盤面を表示
-    for i in range(8):
-        row = ''
-        for j in range(8):
-            if board[i, j] == 0:
-                row += '⬛ '  # 空のマス
-            else:
-                row += f'🟢 ' if board[i, j] == 1 else f'⚫ '
-        st.text(row)
+# ゲームの初期設定
+if 'deck' not in st.session_state:
+    st.session_state.deck = create_deck()
+    st.session_state.player_hand = [st.session_state.deck.pop(), st.session_state.deck.pop()]
+    st.session_state.dealer_hand = [st.session_state.deck.pop(), st.session_state.deck.pop()]
+    st.session_state.game_over = False
 
-# ゲームの実行
-def othello_game():
-    board = initialize_board()
-    current_player = -1  # 最初は黒（-1）
-    player_name = {1: 'White', -1: 'Black'}
+# プレイヤーとディーラーの手を表示
+def show_hands():
+    st.subheader("あなたの手札")
+    st.write(" ".join(st.session_state.player_hand))
+    st.write("合計: ", calculate_hand_value(st.session_state.player_hand))
 
-    # ゲームループ
-    while True:
-        # 盤面を表示
-        display_board(board)
-        
-        # 現在のプレイヤーを表示
-        st.write(f"Current Player: {player_name[current_player]}")
-        
-        # 有効な手を取得
-        valid = valid_moves(board, current_player)
+    st.subheader("ディーラーの手札")
+    st.write(" ".join(st.session_state.dealer_hand[:1]) + " ❓")
+    st.write("合計: ？？")
 
-        if not valid:  # 有効な手がない場合
-            st.write(f"{player_name[current_player]} has no valid moves. Skipping turn.")
-            current_player = -current_player  # プレイヤー交代
-            continue
+# プレイヤーのアクション
+def player_turn():
+    if st.button("カードを引く"):
+        st.session_state.player_hand.append(st.session_state.deck.pop())
+        show_hands()
 
-        # 次に置く手を選択
-        move = st.selectbox("Choose your move:", [f"({r},{c})" for r, c in valid])
-        
-        # 選択した手をボードに反映
-        r, c = map(int, move[1:-1].split(','))
-        board[r, c] = current_player
-        
-        # 石を反転
-        flip_stones(board, r, c, current_player)
+        # プレイヤーの合計が 21 を超えた場合
+        if calculate_hand_value(st.session_state.player_hand) > 21:
+            st.session_state.game_over = True
+            st.write("バーストしました！あなたの負けです...😢")
 
-        # プレイヤー交代
-        current_player = -current_player
+    if st.button("スタンド"):
+        st.session_state.game_over = True
+        dealer_turn()
 
-# StreamlitのUI部分
-st.title("Othello Game")
+# ディーラーのアクション
+def dealer_turn():
+    st.subheader("ディーラーの手札")
+    st.write(" ".join(st.session_state.dealer_hand))
+    dealer_value = calculate_hand_value(st.session_state.dealer_hand)
+    st.write(f"合計: {dealer_value}")
 
-# ゲームスタートボタン
-if st.button('Start Game'):
-    othello_game()
+    # ディーラーの手が 17 以上になるまでカードを引く
+    while dealer_value < 17:
+        st.session_state.dealer_hand.append(st.session_state.deck.pop())
+        dealer_value = calculate_hand_value(st.session_state.dealer_hand)
+        st.write("ディーラーがカードを引きました。")
+        st.write(" ".join(st.session_state.dealer_hand))
+        st.write(f"合計: {dealer_value}")
+
+    # 勝敗判定
+    player_value = calculate_hand_value(st.session_state.player_hand)
+    if dealer_value > 21:
+        st.write("ディーラーがバーストしました！あなたの勝ち！🎉")
+    elif dealer_value > player_value:
+        st.write("ディーラーの勝ちです。😢")
+    elif dealer_value < player_value:
+        st.write("あなたの勝ち！🎉")
+    else:
+        st.write("引き分けです。🤝")
+
+# ゲームオーバー時のリセットボタン
+if st.session_state.game_over:
+    if st.button("新しいゲームを始める"):
+        st.session_state.deck = create_deck()
+        st.session_state.player_hand = [st.session_state.deck.pop(), st.session_state.deck.pop()]
+        st.session_state.dealer_hand = [st.session_state.deck.pop(), st.session_state.deck.pop()]
+        st.session_state.game_over = False
+
+# ゲームを進行
+if not st.session_state.game_over:
+    show_hands()
+    player_turn()
+else:
+    dealer_turn()
