@@ -56,7 +56,7 @@ def player_turn():
         # プレイヤーの合計が 21 を超えた場合
         if calculate_hand_value(st.session_state.player_hand) > 21:
             st.session_state.game_over = True
-            st.write("バーストしました！あなたの負けです...😢")
+            st.write("バストしました！あなたの負けです...😢")
 
     if st.button("スタンド"):
         st.session_state.game_over = True
@@ -80,7 +80,7 @@ def dealer_turn():
     # 勝敗判定
     player_value = calculate_hand_value(st.session_state.player_hand)
     if dealer_value > 21:
-        st.write("ディーラーがバーストしました！あなたの勝ち！🎉")
+        st.write("ディーラーがバストしました！あなたの勝ち！🎉")
     elif dealer_value > player_value:
         st.write("ディーラーの勝ちです。😢")
     elif dealer_value < player_value:
