@@ -1,132 +1,104 @@
 import streamlit as st
-import time
-import random
-import pygame
+import numpy as np
 
-# Pygameの初期化
-pygame.init()
+# オセロの盤面を初期化
+def initialize_board():
+    board = np.zeros((8, 8), dtype=int)
+    board[3, 3] = 1  # 中央に白石
+    board[4, 4] = 1  # 中央に白石
+    board[3, 4] = -1  # 中央に黒石
+    board[4, 3] = -1  # 中央に黒石
+    return board
 
-# ゲームの設定
-WIDTH, HEIGHT = 600, 400
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption('Streamlit Invaders')
+# 石を反転する処理
+def flip_stones(board, row, col, player):
+    directions = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
+    opponent = -player
+    flipped = []
+    
+    for dr, dc in directions:
+        r, c = row + dr, col + dc
+        to_flip = []
+        
+        # 隣接する石を辿って、反対の色の石を探す
+        while 0 <= r < 8 and 0 <= c < 8 and board[r, c] == opponent:
+            to_flip.append((r, c))
+            r, c = r + dr, c + dc
+        
+        # その方向にプレイヤーの石があれば反転
+        if 0 <= r < 8 and 0 <= c < 8 and board[r, c] == player:
+            flipped.extend(to_flip)
+    
+    # 反転する石を実際に反転
+    for r, c in flipped:
+        board[r, c] = player
+    
+    return flipped
 
-# 色
-WHITE = (255, 255, 255)
-GREEN = (0, 255, 0)
-RED = (255, 0, 0)
-BLACK = (0, 0, 0)
+# オセロのプレイが可能かどうかを判定
+def valid_moves(board, player):
+    valid = []
+    for r in range(8):
+        for c in range(8):
+            if board[r, c] == 0:  # 空きマス
+                flipped = flip_stones(board, r, c, player)
+                if flipped:
+                    valid.append((r, c))
+    return valid
 
-# プレイヤーのクラス
-class Player(pygame.sprite.Sprite):
-    def __init__(self):
-        super().__init__()
-        self.image = pygame.Surface((50, 30))
-        self.image.fill(GREEN)
-        self.rect = self.image.get_rect()
-        self.rect.center = (WIDTH // 2, HEIGHT - 30)
-
-    def update(self, move_left, move_right):
-        if move_left and self.rect.left > 0:
-            self.rect.x -= 5
-        if move_right and self.rect.right < WIDTH:
-            self.rect.x += 5
-
-# 弾のクラス
-class Bullet(pygame.sprite.Sprite):
-    def __init__(self, x, y):
-        super().__init__()
-        self.image = pygame.Surface((5, 10))
-        self.image.fill(RED)
-        self.rect = self.image.get_rect()
-        self.rect.center = (x, y)
-
-    def update(self):
-        self.rect.y -= 10
-        if self.rect.bottom < 0:
-            self.kill()
-
-# 敵のクラス
-class Enemy(pygame.sprite.Sprite):
-    def __init__(self, x, y):
-        super().__init__()
-        self.image = pygame.Surface((40, 30))
-        self.image.fill(RED)
-        self.rect = self.image.get_rect()
-        self.rect.x = x
-        self.rect.y = y
-
-    def update(self):
-        self.rect.x += random.choice([-1, 1]) * 2
-        if self.rect.right > WIDTH or self.rect.left < 0:
-            self.rect.y += 20
-            self.rect.x = random.randint(0, WIDTH - 40)
-
-# ゲームのメイン処理
-def game_loop():
-    player = Player()
-    enemies = pygame.sprite.Group()
-    bullets = pygame.sprite.Group()
-
-    for i in range(5):
-        for j in range(3):
-            enemy = Enemy(100 * i + 50, 50 * j + 50)
-            enemies.add(enemy)
-
-    all_sprites = pygame.sprite.Group(player, *enemies)
-
-    move_left = False
-    move_right = False
-    shoot = False
-
-    score = 0
-    clock = pygame.time.Clock()
-
-    while True:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                st.stop()
-
-        # Streamlitのインタラクションでプレイヤーの動きを決定
-        move_left = st.button('Move Left')
-        move_right = st.button('Move Right')
-        shoot = st.button('Shoot')
-
-        player.update(move_left, move_right)
-
-        # 弾の発射
-        if shoot:
-            bullet = Bullet(player.rect.centerx, player.rect.top)
-            bullets.add(bullet)
-            all_sprites.add(bullet)
-
-        bullets.update()
-        enemies.update()
-
-        # 衝突判定
-        for bullet in bullets:
-            enemy_hit = pygame.sprite.spritecollide(bullet, enemies, True)
-            if enemy_hit:
-                score += 10
-                bullet.kill()
-
-        # 描画
-        screen.fill(BLACK)
-        all_sprites.draw(screen)
-
-        # スコア表示
-        font = pygame.font.Font(None, 36)
-        score_text = font.render(f"Score: {score}", True, WHITE)
-        screen.blit(score_text, (10, 10))
-
-        pygame.display.flip()
-        clock.tick(30)
-
-# StreamlitのUI
-st.title('Streamlit Invaders')
-st.write('Move left or right, and shoot to destroy the enemies!')
+# ゲーム状態を表示
+def display_board(board):
+    colors = {1: 'white', -1: 'black'}
+    st.write('## Othello Game')
+    
+    # 盤面を表示
+    for i in range(8):
+        row = ''
+        for j in range(8):
+            if board[i, j] == 0:
+                row += '⬛ '  # 空のマス
+            else:
+                row += f'🟢 ' if board[i, j] == 1 else f'⚫ '
+        st.text(row)
 
 # ゲームの実行
+def othello_game():
+    board = initialize_board()
+    current_player = -1  # 最初は黒（-1）
+    player_name = {1: 'White', -1: 'Black'}
+
+    # ゲームループ
+    while True:
+        # 盤面を表示
+        display_board(board)
+        
+        # 現在のプレイヤーを表示
+        st.write(f"Current Player: {player_name[current_player]}")
+        
+        # 有効な手を取得
+        valid = valid_moves(board, current_player)
+
+        if not valid:  # 有効な手がない場合
+            st.write(f"{player_name[current_player]} has no valid moves. Skipping turn.")
+            current_player = -current_player  # プレイヤー交代
+            continue
+
+        # 次に置く手を選択
+        move = st.selectbox("Choose your move:", [f"({r},{c})" for r, c in valid])
+        
+        # 選択した手をボードに反映
+        r, c = map(int, move[1:-1].split(','))
+        board[r, c] = current_player
+        
+        # 石を反転
+        flip_stones(board, r, c, current_player)
+
+        # プレイヤー交代
+        current_player = -current_player
+
+# StreamlitのUI部分
+st.title("Othello Game")
+
+# ゲームスタートボタン
 if st.button('Start Game'):
-    game_loop()
+    othello_game()
