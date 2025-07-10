@@ -1,104 +1,132 @@
-import random
 import streamlit as st
+import time
+import random
+import pygame
 
-# トランプのカードを作成
-suits = ["♥", "♦", "♣", "♠"]
-ranks = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
-values = {"2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "10": 10, "J": 10, "Q": 10, "K": 10, "A": 11}
+# Pygameの初期化
+pygame.init()
 
-# トランプデッキを作成
-def create_deck():
-    deck = [f"{rank}{suit}" for suit in suits for rank in ranks]
-    random.shuffle(deck)
-    return deck
+# ゲームの設定
+WIDTH, HEIGHT = 600, 400
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption('Streamlit Invaders')
 
-# カードの合計値を計算
-def calculate_hand_value(hand):
-    value = 0
-    aces = 0  # エースの数を追跡
+# 色
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+BLACK = (0, 0, 0)
 
-    for card in hand:
-        rank = card[:-1]  # トランプのランク（数字部分）
-        value += values[rank]
-        if rank == "A":
-            aces += 1
-    
-    # エースが含まれている場合、合計が 21 を超えないように調整
-    while value > 21 and aces:
-        value -= 10
-        aces -= 1
+# プレイヤーのクラス
+class Player(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.Surface((50, 30))
+        self.image.fill(GREEN)
+        self.rect = self.image.get_rect()
+        self.rect.center = (WIDTH // 2, HEIGHT - 30)
 
-    return value
+    def update(self, move_left, move_right):
+        if move_left and self.rect.left > 0:
+            self.rect.x -= 5
+        if move_right and self.rect.right < WIDTH:
+            self.rect.x += 5
 
-# ゲームの初期設定
-if 'deck' not in st.session_state:
-    st.session_state.deck = create_deck()
-    st.session_state.player_hand = [st.session_state.deck.pop(), st.session_state.deck.pop()]
-    st.session_state.dealer_hand = [st.session_state.deck.pop(), st.session_state.deck.pop()]
-    st.session_state.game_over = False
+# 弾のクラス
+class Bullet(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.Surface((5, 10))
+        self.image.fill(RED)
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
 
-# プレイヤーとディーラーの手を表示
-def show_hands():
-    st.subheader("あなたの手札")
-    st.write(" ".join(st.session_state.player_hand))
-    st.write("合計: ", calculate_hand_value(st.session_state.player_hand))
+    def update(self):
+        self.rect.y -= 10
+        if self.rect.bottom < 0:
+            self.kill()
 
-    st.subheader("ディーラーの手札")
-    st.write(" ".join(st.session_state.dealer_hand[:1]) + " ❓")
-    st.write("合計: ？？")
+# 敵のクラス
+class Enemy(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.Surface((40, 30))
+        self.image.fill(RED)
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
 
-# プレイヤーのアクション
-def player_turn():
-    if st.button("カードを引く"):
-        st.session_state.player_hand.append(st.session_state.deck.pop())
-        show_hands()
+    def update(self):
+        self.rect.x += random.choice([-1, 1]) * 2
+        if self.rect.right > WIDTH or self.rect.left < 0:
+            self.rect.y += 20
+            self.rect.x = random.randint(0, WIDTH - 40)
 
-        # プレイヤーの合計が 21 を超えた場合
-        if calculate_hand_value(st.session_state.player_hand) > 21:
-            st.session_state.game_over = True
-            st.write("バーストしました！あなたの負けです...😢")
+# ゲームのメイン処理
+def game_loop():
+    player = Player()
+    enemies = pygame.sprite.Group()
+    bullets = pygame.sprite.Group()
 
-    if st.button("スタンド"):
-        st.session_state.game_over = True
-        dealer_turn()
+    for i in range(5):
+        for j in range(3):
+            enemy = Enemy(100 * i + 50, 50 * j + 50)
+            enemies.add(enemy)
 
-# ディーラーのアクション
-def dealer_turn():
-    st.subheader("ディーラーの手札")
-    st.write(" ".join(st.session_state.dealer_hand))
-    dealer_value = calculate_hand_value(st.session_state.dealer_hand)
-    st.write(f"合計: {dealer_value}")
+    all_sprites = pygame.sprite.Group(player, *enemies)
 
-    # ディーラーの手が 17 以上になるまでカードを引く
-    while dealer_value < 17:
-        st.session_state.dealer_hand.append(st.session_state.deck.pop())
-        dealer_value = calculate_hand_value(st.session_state.dealer_hand)
-        st.write("ディーラーがカードを引きました。")
-        st.write(" ".join(st.session_state.dealer_hand))
-        st.write(f"合計: {dealer_value}")
+    move_left = False
+    move_right = False
+    shoot = False
 
-    # 勝敗判定
-    player_value = calculate_hand_value(st.session_state.player_hand)
-    if dealer_value > 21:
-        st.write("ディーラーがバーストしました！あなたの勝ち！🎉")
-    elif dealer_value > player_value:
-        st.write("ディーラーの勝ちです。😢")
-    elif dealer_value < player_value:
-        st.write("あなたの勝ち！🎉")
-    else:
-        st.write("引き分けです。🤝")
+    score = 0
+    clock = pygame.time.Clock()
 
-# ゲームオーバー時のリセットボタン
-if st.session_state.game_over:
-    if st.button("新しいゲームを始める"):
-        st.session_state.deck = create_deck()
-        st.session_state.player_hand = [st.session_state.deck.pop(), st.session_state.deck.pop()]
-        st.session_state.dealer_hand = [st.session_state.deck.pop(), st.session_state.deck.pop()]
-        st.session_state.game_over = False
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                st.stop()
 
-# ゲームを進行
-if not st.session_state.game_over:
-    show_hands()
-    player_turn()
-else:
-    dealer_turn()
+        # Streamlitのインタラクションでプレイヤーの動きを決定
+        move_left = st.button('Move Left')
+        move_right = st.button('Move Right')
+        shoot = st.button('Shoot')
+
+        player.update(move_left, move_right)
+
+        # 弾の発射
+        if shoot:
+            bullet = Bullet(player.rect.centerx, player.rect.top)
+            bullets.add(bullet)
+            all_sprites.add(bullet)
+
+        bullets.update()
+        enemies.update()
+
+        # 衝突判定
+        for bullet in bullets:
+            enemy_hit = pygame.sprite.spritecollide(bullet, enemies, True)
+            if enemy_hit:
+                score += 10
+                bullet.kill()
+
+        # 描画
+        screen.fill(BLACK)
+        all_sprites.draw(screen)
+
+        # スコア表示
+        font = pygame.font.Font(None, 36)
+        score_text = font.render(f"Score: {score}", True, WHITE)
+        screen.blit(score_text, (10, 10))
+
+        pygame.display.flip()
+        clock.tick(30)
+
+# StreamlitのUI
+st.title('Streamlit Invaders')
+st.write('Move left or right, and shoot to destroy the enemies!')
+
+# ゲームの実行
+if st.button('Start Game'):
+    game_loop()
