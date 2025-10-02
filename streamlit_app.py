@@ -7,13 +7,13 @@ from geopy.distance import geodesic
 import polyline
 
 # ========================
-# 🔐 APIキー（あなたのものに置き換えてください）
+# 🔐 APIキーを入れてください
 # ========================
-OPENWEATHER_API_KEY = 'あなたのOpenWeatherMapAPIキー'
-GOOGLE_MAPS_API_KEY = 'あなたのGoogleMapsAPIキー'
+OPENWEATHER_API_KEY = 'YOUR_OPENWEATHERMAP_API_KEY'  # OpenWeatherMap
+GOOGLE_MAPS_API_KEY = 'YOUR_GOOGLE_MAPS_API_KEY'     # Google Maps Platform
 
 # ========================
-# 📍 住所 → 緯度経度に変換（ジオコーディング）
+# 📍 住所 → 緯度・経度に変換
 # ========================
 def get_coordinates(address):
     url = 'https://maps.googleapis.com/maps/api/geocode/json'
@@ -32,7 +32,7 @@ def get_coordinates(address):
         return None
 
 # ========================
-# ☀️ 天気情報取得（OpenWeatherMap）
+# ☀️ 天気情報取得
 # ========================
 def get_weather(lat, lon):
     url = f'https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}&units=metric&lang=ja'
@@ -47,7 +47,7 @@ def get_weather(lat, lon):
         return None, None, None
 
 # ========================
-# 📍 ルート取得（Google Maps Directions API）
+# 🚗 Google Maps APIでルート取得
 # ========================
 def get_route(origin, destination, mode='driving'):
     url = 'https://maps.googleapis.com/maps/api/directions/json'
@@ -55,6 +55,8 @@ def get_route(origin, destination, mode='driving'):
         'origin': f'{origin[0]},{origin[1]}',
         'destination': f'{destination[0]},{destination[1]}',
         'mode': mode,
+        'language': 'ja',
+        'region': 'jp',
         'key': GOOGLE_MAPS_API_KEY
     }
     res = requests.get(url, params=params)
@@ -69,7 +71,7 @@ def get_route(origin, destination, mode='driving'):
         return None, None, None
 
 # ========================
-# 🚶‍♀️最短ルートの順番決定（順列全探索）
+# 📈 最短ルートを決定（順列全探索）
 # ========================
 def total_distance(points):
     dist = 0
@@ -91,18 +93,19 @@ def shortest_route(start, destinations):
 # ========================
 # 🌐 Streamlit UI
 # ========================
-st.title('日田市観光ナビマップ 🗺️🚶‍♂️')
+st.set_page_config(page_title="日田市観光マップ", layout="wide")
+st.title('🗺️ 日田市観光ナビマップ')
 
-# --- 現在地（地名で入力） ---
-st.header('現在地を入力（住所や施設名）')
-user_address = st.text_input('例: JR日田駅', 'JR日田駅')
+# --- 現在地（地名入力） ---
+st.header('📍 現在地を入力（住所・施設名）')
+user_address = st.text_input('例: JR日田駅, サッポロビール九州日田工場', 'JR日田駅')
 user_location = get_coordinates(user_address)
 if not user_location:
     st.error('現在地の住所が正しく変換できませんでした。')
     st.stop()
 
-# --- 天気情報の表示 ---
-st.header('📡 現在の天気')
+# --- 天気情報表示 ---
+st.subheader('☀️ 現在の天気')
 weather_desc, temp, humidity = get_weather(*user_location)
 if weather_desc:
     st.write(f"天気: {weather_desc}")
@@ -111,8 +114,8 @@ if weather_desc:
 else:
     st.warning("天気情報を取得できませんでした。")
 
-# --- 目的地の入力（住所） ---
-st.header('🎯 目的地を入力（最大5件）')
+# --- 目的地の入力 ---
+st.header('🎯 行きたい場所（最大5件）')
 destinations = []
 for i in range(1, 6):
     dest_input = st.text_input(f'目的地{i}', '')
@@ -128,30 +131,29 @@ if len(destinations) == 0:
     st.warning("目的地を1つ以上入力してください。")
     st.stop()
 
-# --- 交通手段の選択 ---
-mode = st.selectbox('移動手段を選択', ['driving', 'walking', 'bicycling', 'transit'])
+# --- 移動手段の選択 ---
+mode = st.selectbox('🚶‍♀️ 移動手段', ['driving', 'walking', 'bicycling', 'transit'])
 
 # --- 最短ルート計算 ---
 best_order, total_km = shortest_route(user_location, destinations)
-st.subheader(f"🚗 最適な巡回順（合計距離: {total_km:.2f} km）")
+st.subheader(f"📍 最適な巡回順（合計距離: {total_km:.2f} km）")
 for idx, point in enumerate(best_order):
-    st.write(f"{idx+1}. {point}")
+    st.write(f"{idx+1}. 緯度: {point[0]}, 経度: {point[1]}")
 
-# --- 地図表示（Folium） ---
+# --- 地図描画 ---
 m = folium.Map(location=user_location, zoom_start=14)
 folium.Marker(user_location, tooltip='現在地', icon=folium.Icon(color='blue')).add_to(m)
 
-# 目的地マーカー追加
+# マーカーとルート
+prev = user_location
 for idx, dest in enumerate(best_order):
     folium.Marker(dest, tooltip=f'目的地{idx+1}', icon=folium.Icon(color='red')).add_to(m)
-
-# ルート描画
-prev = user_location
-for dest in best_order:
     route_polyline, dist_text, duration_text = get_route(prev, dest, mode)
     if route_polyline:
         decoded = polyline.decode(route_polyline)
-        folium.PolyLine(decoded, color='green', weight=5, opacity=0.7).add_to(m)
+        folium.PolyLine(decoded, color='green', weight=5).add_to(m)
     prev = dest
 
-st_folium(m, width=700, height=500)
+# --- 地図を表示 ---
+st.subheader("🗺️ 地図")
+st_folium(m, width=800, height=500)
