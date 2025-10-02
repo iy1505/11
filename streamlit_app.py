@@ -1,104 +1,139 @@
-import random
 import streamlit as st
+import requests
+import folium
+from streamlit_folium import st_folium
+from itertools import permutations
 
-# トランプのカードを作成
-suits = ["♥", "♦", "♣", "♠"]
-ranks = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
-values = {"2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "10": 10, "J": 10, "Q": 10, "K": 10, "A": 11}
+# --- APIキー（環境変数や安全な場所に置いてね） ---
+OPENWEATHER_API_KEY = 'あなたのOpenWeatherMapAPIキー'
+GOOGLE_MAPS_API_KEY = 'あなたのGoogleMapsAPIキー'
 
-# トランプデッキを作成
-def create_deck():
-    deck = [f"{rank}{suit}" for suit in suits for rank in ranks]
-    random.shuffle(deck)
-    return deck
+# 日田市の中心座標（緯度・経度）
+HITA_COORDS = (33.3213, 130.9293)
 
-# カードの合計値を計算
-def calculate_hand_value(hand):
-    value = 0
-    aces = 0  # エースの数を追跡
-
-    for card in hand:
-        rank = card[:-1]  # トランプのランク（数字部分）
-        value += values[rank]
-        if rank == "A":
-            aces += 1
-    
-    # エースが含まれている場合、合計が 21 を超えないように調整
-    while value > 21 and aces:
-        value -= 10
-        aces -= 1
-
-    return value
-
-# ゲームの初期設定
-if 'deck' not in st.session_state:
-    st.session_state.deck = create_deck()
-    st.session_state.player_hand = [st.session_state.deck.pop(), st.session_state.deck.pop()]
-    st.session_state.dealer_hand = [st.session_state.deck.pop(), st.session_state.deck.pop()]
-    st.session_state.game_over = False
-
-# プレイヤーとディーラーの手を表示
-def show_hands():
-    st.subheader("あなたの手札")
-    st.write(" ".join(st.session_state.player_hand))
-    st.write("合計: ", calculate_hand_value(st.session_state.player_hand))
-
-    st.subheader("ディーラーの手札")
-    st.write(" ".join(st.session_state.dealer_hand[:1]) + " ❓")
-    st.write("合計: ？？")
-
-# プレイヤーのアクション
-def player_turn():
-    if st.button("カードを引く"):
-        st.session_state.player_hand.append(st.session_state.deck.pop())
-        show_hands()
-
-        # プレイヤーの合計が 21 を超えた場合
-        if calculate_hand_value(st.session_state.player_hand) > 21:
-            st.session_state.game_over = True
-            st.write("バストしました！あなたの負けです...😢")
-
-    if st.button("スタンド"):
-        st.session_state.game_over = True
-        dealer_turn()
-
-# ディーラーのアクション
-def dealer_turn():
-    st.subheader("ディーラーの手札")
-    st.write(" ".join(st.session_state.dealer_hand))
-    dealer_value = calculate_hand_value(st.session_state.dealer_hand)
-    st.write(f"合計: {dealer_value}")
-
-    # ディーラーの手が 17 以上になるまでカードを引く
-    while dealer_value < 17:
-        st.session_state.dealer_hand.append(st.session_state.deck.pop())
-        dealer_value = calculate_hand_value(st.session_state.dealer_hand)
-        st.write("ディーラーがカードを引きました。")
-        st.write(" ".join(st.session_state.dealer_hand))
-        st.write(f"合計: {dealer_value}")
-
-    # 勝敗判定
-    player_value = calculate_hand_value(st.session_state.player_hand)
-    if dealer_value > 21:
-        st.write("ディーラーがバストしました！あなたの勝ち！🎉")
-    elif dealer_value > player_value:
-        st.write("ディーラーの勝ちです。😢")
-    elif dealer_value < player_value:
-        st.write("あなたの勝ち！🎉")
+# --- 天気情報取得 ---
+def get_weather(lat, lon):
+    url = f'https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}&units=metric&lang=ja'
+    res = requests.get(url)
+    data = res.json()
+    if res.status_code == 200:
+        weather_desc = data['weather'][0]['description']
+        temp = data['main']['temp']
+        humidity = data['main']['humidity']
+        return weather_desc, temp, humidity
     else:
-        st.write("引き分けです。🤝")
+        return None, None, None
 
-# ゲームオーバー時のリセットボタン
-if st.session_state.game_over:
-    if st.button("新しいゲームを始める"):
-        st.session_state.deck = create_deck()
-        st.session_state.player_hand = [st.session_state.deck.pop(), st.session_state.deck.pop()]
-        st.session_state.dealer_hand = [st.session_state.deck.pop(), st.session_state.deck.pop()]
-        st.session_state.game_over = False
+# --- ルート計算 ---
+def get_route(origin, destination, mode='driving'):
+    url = 'https://maps.googleapis.com/maps/api/directions/json'
+    params = {
+        'origin': f'{origin[0]},{origin[1]}',
+        'destination': f'{destination[0]},{destination[1]}',
+        'mode': mode,
+        'key': GOOGLE_MAPS_API_KEY
+    }
+    res = requests.get(url, params=params)
+    data = res.json()
+    if data['status'] == 'OK':
+        route = data['routes'][0]['overview_polyline']['points']
+        legs = data['routes'][0]['legs'][0]
+        distance = legs['distance']['text']
+        duration = legs['duration']['text']
+        steps = legs['steps']
+        return route, distance, duration, steps
+    else:
+        return None, None, None, None
 
-# ゲームを進行
-if not st.session_state.game_over:
-    show_hands()
-    player_turn()
+# --- 緯度経度の距離計算（単純な直線距離） ---
+from geopy.distance import geodesic
+
+def total_distance(points):
+    dist = 0
+    for i in range(len(points)-1):
+        dist += geodesic(points[i], points[i+1]).km
+    return dist
+
+# --- 最短ルート順序の計算（順列全探索） ---
+def shortest_route(start, destinations):
+    min_dist = float('inf')
+    best_order = None
+    for order in permutations(destinations):
+        route = [start] + list(order)
+        dist = total_distance(route)
+        if dist < min_dist:
+            min_dist = dist
+            best_order = order
+    return best_order, min_dist
+
+# --- Streamlit UI ---
+st.title('日田市観光ナビマップ')
+
+# 天気表示
+st.header('現在の日田市の天気')
+weather_desc, temp, humidity = get_weather(*HITA_COORDS)
+if weather_desc:
+    st.write(f"天気: {weather_desc}")
+    st.write(f"気温: {temp} ℃")
+    st.write(f"湿度: {humidity} %")
 else:
-    dealer_turn()
+    st.write("天気情報を取得できませんでした。")
+
+# ユーザーの現在地入力（簡易的にテキスト入力）
+st.header('現在地を入力（緯度,経度）')
+user_location_input = st.text_input('例: 33.320, 130.930', '33.320,130.930')
+try:
+    user_location = tuple(map(float, user_location_input.split(',')))
+except:
+    st.error('緯度と経度をカンマで区切って入力してください')
+    st.stop()
+
+# 目的地の追加（最大5ヶ所まで）
+st.header('目的地を複数入力')
+destinations = []
+for i in range(1, 6):
+    dest_input = st.text_input(f'目的地{i}（緯度,経度をカンマ区切りで入力）', '')
+    if dest_input:
+        try:
+            coord = tuple(map(float, dest_input.split(',')))
+            destinations.append(coord)
+        except:
+            st.error(f'目的地{i}の入力形式が正しくありません')
+            st.stop()
+
+if len(destinations) == 0:
+    st.warning('目的地を1つ以上入力してください')
+    st.stop()
+
+# 交通手段の選択
+mode = st.selectbox('移動手段を選択してください', ['driving', 'walking', 'bicycling', 'transit'])
+
+# 最短ルート計算
+best_order, dist = shortest_route(user_location, destinations)
+
+st.write(f'推奨ルート順序（最短距離: {dist:.2f} km）:')
+for idx, point in enumerate(best_order):
+    st.write(f'{idx+1}. {point}')
+
+# Foliumで地図表示
+m = folium.Map(location=user_location, zoom_start=13)
+
+# ユーザー現在地マーカー
+folium.Marker(user_location, tooltip='現在地', icon=folium.Icon(color='blue')).add_to(m)
+
+# 目的地マーカー
+for idx, point in enumerate(best_order):
+    folium.Marker(point, tooltip=f'目的地{idx+1}', icon=folium.Icon(color='red')).add_to(m)
+
+# ルートを順に描画
+import polyline
+prev = user_location
+for point in best_order:
+    # Google Maps Directions APIで経路ポリライン取得
+    route, distance, duration, steps = get_route(prev, point, mode)
+    if route:
+        decoded = polyline.decode(route)
+        folium.PolyLine(decoded, color='green', weight=5, opacity=0.7).add_to(m)
+    prev = point
+
+st_folium(m, width=700, height=500)
