@@ -1,159 +1,116 @@
 import streamlit as st
-import requests
 import folium
 from streamlit_folium import st_folium
-from itertools import permutations
 from geopy.distance import geodesic
-import polyline
+import requests
 
-# ========================
-# 🔐 APIキーを入れてください
-# ========================
-OPENWEATHER_API_KEY = 'YOUR_OPENWEATHERMAP_API_KEY'  # OpenWeatherMap
-GOOGLE_MAPS_API_KEY = 'YOUR_GOOGLE_MAPS_API_KEY'     # Google Maps Platform
+# --- APIキー（各自取得して設定）
+GOOGLE_MAPS_API_KEY = "YOUR_GOOGLE_API_KEY"
+OPENWEATHER_API_KEY = "YOUR_OPENWEATHER_API_KEY"
 
-# ========================
-# 📍 住所 → 緯度・経度に変換
-# ========================
+# --- デモデータ（実際はAPIやDBから取得）
+tourism_spots = [
+    {"name": "豆田町", "lat": 33.319, "lon": 130.939, "type": "観光地", "hours": "9:00 - 17:00"},
+    {"name": "サッポロビール九州日田工場", "lat": 33.3225, "lon": 130.9183, "type": "飲食店", "hours": "10:00 - 18:00"},
+    {"name": "日田温泉", "lat": 33.3222, "lon": 130.9333, "type": "温泉", "hours": "15:00 - 23:00"},
+]
+
+evacuation_spots = [
+    {"name": "日田市民文化会館", "lat": 33.322, "lon": 130.926},
+    {"name": "日田市立図書館", "lat": 33.324, "lon": 130.932},
+]
+
+disaster_zones = {
+    "洪水": [(33.318, 130.930), (33.320, 130.928)],
+    "土砂災害": [(33.315, 130.925), (33.316, 130.927)],
+}
+
+# --- 関数群
 def get_coordinates(address):
-    url = 'https://maps.googleapis.com/maps/api/geocode/json'
-    params = {
-        'address': address,
-        'region': 'jp',
-        'language': 'ja',
-        'key': GOOGLE_MAPS_API_KEY
-    }
-    res = requests.get(url, params=params)
-    data = res.json()
-    if data['status'] == 'OK':
-        location = data['results'][0]['geometry']['location']
-        return (location['lat'], location['lng'])
-    else:
-        return None
+    url = f"https://maps.googleapis.com/maps/api/geocode/json"
+    params = {"address": address, "key": GOOGLE_MAPS_API_KEY, "region": "jp"}
+    res = requests.get(url, params=params).json()
+    if res['status'] == 'OK':
+        loc = res['results'][0]['geometry']['location']
+        return (loc['lat'], loc['lng'])
+    return None
 
-# ========================
-# ☀️ 天気情報取得
-# ========================
 def get_weather(lat, lon):
-    url = f'https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}&units=metric&lang=ja'
-    res = requests.get(url)
-    data = res.json()
-    if res.status_code == 200:
-        weather_desc = data['weather'][0]['description']
-        temp = data['main']['temp']
-        humidity = data['main']['humidity']
-        return weather_desc, temp, humidity
-    else:
-        return None, None, None
+    url = f"https://api.openweathermap.org/data/2.5/weather"
+    params = {"lat": lat, "lon": lon, "appid": OPENWEATHER_API_KEY, "units": "metric", "lang": "ja"}
+    res = requests.get(url, params=params).json()
+    if "weather" in res:
+        return res["weather"][0]["description"], res["main"]["temp"]
+    return None, None
 
-# ========================
-# 🚗 Google Maps APIでルート取得
-# ========================
-def get_route(origin, destination, mode='driving'):
-    url = 'https://maps.googleapis.com/maps/api/directions/json'
-    params = {
-        'origin': f'{origin[0]},{origin[1]}',
-        'destination': f'{destination[0]},{destination[1]}',
-        'mode': mode,
-        'language': 'ja',
-        'region': 'jp',
-        'key': GOOGLE_MAPS_API_KEY
-    }
-    res = requests.get(url, params=params)
-    data = res.json()
-    if data['status'] == 'OK':
-        route = data['routes'][0]['overview_polyline']['points']
-        legs = data['routes'][0]['legs'][0]
-        distance = legs['distance']['text']
-        duration = legs['duration']['text']
-        return route, distance, duration
-    else:
-        return None, None, None
+def find_nearest(current, locations):
+    return min(locations, key=lambda loc: geodesic(current, (loc["lat"], loc["lon"])).km)
 
-# ========================
-# 📈 最短ルートを決定（順列全探索）
-# ========================
-def total_distance(points):
-    dist = 0
-    for i in range(len(points)-1):
-        dist += geodesic(points[i], points[i+1]).km
-    return dist
+# --- Streamlit UI
+st.set_page_config(page_title="日田市ナビアプリ", layout="wide")
+st.title("🗾 日田市マップナビ - 観光 / 防災")
 
-def shortest_route(start, destinations):
-    min_dist = float('inf')
-    best_order = None
-    for order in permutations(destinations):
-        route = [start] + list(order)
-        dist = total_distance(route)
-        if dist < min_dist:
-            min_dist = dist
-            best_order = order
-    return best_order, min_dist
+# --- モード選択
+mode = st.radio("モードを選んでください", ["観光モード", "防災モード"])
 
-# ========================
-# 🌐 Streamlit UI
-# ========================
-st.set_page_config(page_title="日田市観光マップ", layout="wide")
-st.title('🗺️ 日田市観光ナビマップ')
+# --- 現在地の入力
+address = st.text_input("📍 現在地を入力（地名または施設名）", "JR日田駅")
+location = get_coordinates(address)
 
-# --- 現在地（地名入力） ---
-st.header('📍 現在地を入力（住所・施設名）')
-user_address = st.text_input('例: JR日田駅, サッポロビール九州日田工場', 'JR日田駅')
-user_location = get_coordinates(user_address)
-if not user_location:
-    st.error('現在地の住所が正しく変換できませんでした。')
+if not location:
+    st.error("現在地の取得に失敗しました。")
     st.stop()
 
-# --- 天気情報表示 ---
-st.subheader('☀️ 現在の天気')
-weather_desc, temp, humidity = get_weather(*user_location)
-if weather_desc:
-    st.write(f"天気: {weather_desc}")
-    st.write(f"気温: {temp} ℃")
-    st.write(f"湿度: {humidity} %")
-else:
-    st.warning("天気情報を取得できませんでした。")
+# --- 地図初期化
+m = folium.Map(location=location, zoom_start=14)
+folium.Marker(location, tooltip="現在地", icon=folium.Icon(color='blue')).add_to(m)
 
-# --- 目的地の入力 ---
-st.header('🎯 行きたい場所（最大5件）')
-destinations = []
-for i in range(1, 6):
-    dest_input = st.text_input(f'目的地{i}', '')
-    if dest_input:
-        coord = get_coordinates(dest_input)
-        if coord:
-            destinations.append(coord)
-        else:
-            st.error(f'目的地{i}の住所が正しく変換できませんでした')
-            st.stop()
+# === 観光モード ===
+if mode == "観光モード":
+    st.subheader("🗺️ 観光地＆飲食店マップ")
+    
+    for spot in tourism_spots:
+        folium.Marker(
+            [spot["lat"], spot["lon"]],
+            tooltip=f'{spot["name"]}（{spot["type"]}）',
+            popup=f'営業時間: {spot["hours"]}',
+            icon=folium.Icon(color='green')
+        ).add_to(m)
 
-if len(destinations) == 0:
-    st.warning("目的地を1つ以上入力してください。")
-    st.stop()
+    st.markdown("### 🌞 現在の天気")
+    desc, temp = get_weather(*location)
+    if desc:
+        st.write(f"天気: {desc}, 気温: {temp}℃")
 
-# --- 移動手段の選択 ---
-mode = st.selectbox('🚶‍♀️ 移動手段', ['driving', 'walking', 'bicycling', 'transit'])
+    st.markdown("### 🎉 季節イベント（例）")
+    st.info("- 10月：日田天領まつり\n- 8月：日田祇園祭\n- 春：桜まつり（亀山公園）")
 
-# --- 最短ルート計算 ---
-best_order, total_km = shortest_route(user_location, destinations)
-st.subheader(f"📍 最適な巡回順（合計距離: {total_km:.2f} km）")
-for idx, point in enumerate(best_order):
-    st.write(f"{idx+1}. 緯度: {point[0]}, 経度: {point[1]}")
+# === 防災モード ===
+elif mode == "防災モード":
+    st.subheader("🚨 避難場所と災害エリア")
 
-# --- 地図描画 ---
-m = folium.Map(location=user_location, zoom_start=14)
-folium.Marker(user_location, tooltip='現在地', icon=folium.Icon(color='blue')).add_to(m)
+    nearest = find_nearest(location, evacuation_spots)
+    st.markdown(f"🏃‍♂️ 最寄りの避難場所: **{nearest['name']}**")
+    folium.Marker(
+        [nearest["lat"], nearest["lon"]],
+        tooltip="最寄りの避難所",
+        icon=folium.Icon(color='red', icon="info-sign")
+    ).add_to(m)
 
-# マーカーとルート
-prev = user_location
-for idx, dest in enumerate(best_order):
-    folium.Marker(dest, tooltip=f'目的地{idx+1}', icon=folium.Icon(color='red')).add_to(m)
-    route_polyline, dist_text, duration_text = get_route(prev, dest, mode)
-    if route_polyline:
-        decoded = polyline.decode(route_polyline)
-        folium.PolyLine(decoded, color='green', weight=5).add_to(m)
-    prev = dest
+    st.markdown("### ⚠️ 災害種別ごとの危険エリア")
+    for disaster, points in disaster_zones.items():
+        for lat, lon in points:
+            folium.CircleMarker(
+                location=[lat, lon],
+                radius=30,
+                color="orange",
+                fill=True,
+                fill_opacity=0.4,
+                popup=f"{disaster}エリア"
+            ).add_to(m)
 
-# --- 地図を表示 ---
-st.subheader("🗺️ 地図")
-st_folium(m, width=800, height=500)
+    st.markdown("### 🧰 防災グッズリスト")
+    st.success("- 懐中電灯\n- モバイルバッテリー\n- 非常食\n- 水\n- ラジオ\n- 救急セット")
+
+# --- 地図表示
+st_folium(m, width=800, height=550)
