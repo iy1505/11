@@ -66,9 +66,15 @@ if not location:
     st.error("現在地の取得に失敗しました。正しい地名を入力してください。")
     st.stop()
 
-# 地図初期化
-m = folium.Map(location=location, zoom_start=14)
-folium.Marker(location, tooltip="現在地", icon=folium.Icon(color='blue', icon="user")).add_to(m)
+# 1. 地図オブジェクト作成
+m = folium.Map(location=[緯度, 経度], zoom_start=14)
+
+# 2. マーカーなどを追加
+folium.Marker([緯度, 経度], tooltip="ここ！").add_to(m)
+
+# 3. Streamlitに地図を表示
+st_folium(m, width=700, height=500)
+
 
 if mode == "観光モード":
     st.subheader("🗺️ 観光地・飲食店マップ")
