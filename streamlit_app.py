@@ -1,52 +1,39 @@
 import streamlit as st
-import folium
-from streamlit_folium import st_folium
-from geopy.distance import geodesic
-import requests
+import streamlit.components.v1 as components
+import json
+import os
 
-# --- APIキー（各自取得して設定してください）必須項目
-GOOGLE_MAPS_API_KEY = "YOUR_GOOGLE_API_KEY"
-OPENWEATHER_API_KEY = "YOUR_OPENWEATHER_API_KEY"
-
-# --- デモデータ（実際はAPIやDBから取得してください）
+# 観光モード・防災モードのデータ
 tourism_spots = [
-    {"name": "豆田町", "lat": 33.319, "lon": 130.939, "type": "観光地", "hours": "9:00 - 17:00"},
-    {"name": "サッポロビール九州日田工場", "lat": 33.3225, "lon": 130.9183, "type": "飲食店", "hours": "10:00 - 18:00"},
-    {"name": "日田温泉", "lat": 33.3222, "lon": 130.9333, "type": "温泉", "hours": "15:00 - 23:00"},
+    {"name": "豆田町", "lat": 33.319, "lon": 130.939, "type": "観光地"},
+    {"name": "サッポロビール九州日田工場", "lat": 33.3225, "lon": 130.9183, "type": "飲食店"},
+    {"name": "日田温泉", "lat": 33.3222, "lon": 130.9333, "type": "温泉"},
 ]
 
 evacuation_spots = [
-    {"name": "日田市民文化会館", "lat": 33.322, "lon": 130.926},
-    {"name": "日田市立図書館", "lat": 33.324, "lon": 130.932},
+    {"name": "日田市民文化会館", "lat": 33.322, "lon": 130.926, "type": "避難所"},
+    {"name": "日田市立図書館", "lat": 33.324, "lon": 130.932, "type": "避難所"},
 ]
 
-disaster_zones = {
-    "洪水": [(33.318, 130.930), (33.320, 130.928)],
-    "土砂災害": [(33.315, 130.925), (33.316, 130.927)],
-}
+# ページ設定
+st.set_page_config(page_title="日田市マップナビ", layout="wide")
+st.title("🗾 日田市マップナビ（Google Maps版）")
 
-# --- 関数群
+mode = st.radio("モードを選んでください", ["観光モード", "防災モード"])
 
-def get_weather(lat, lon):
-    """OpenWeatherMap APIで天気情報を取得"""
-    url = "https://api.openweathermap.org/data/2.5/weather"
-    params = {"lat": lat, "lon": lon, "appid": OPENWEATHER_API_KEY, "units": "metric", "lang": "ja"}
-    res = requests.get(url, params=params).json()
-    if "weather" in res and "main" in res:
-        return res["weather"][0]["description"], res["main"]["temp"]
-    return None, None
+# モードに応じたデータを選ぶ
+selected_data = tourism_spots if mode == "観光モード" else evacuation_spots
 
-def find_nearest(current, locations):
-    """現在地(current)から最も近いスポットを返す"""
-    return min(locations, key=lambda loc: geodesic(current, (loc["lat"], loc["lon"])).km)
+# static フォルダを作って JSON を保存
+os.makedirs("static", exist_ok=True)
+with open("static/map_data.json", "w", encoding="utf-8") as f:
+    json.dump(selected_data, f, ensure_ascii=False)
 
-# --- Streamlit UI
+# Google Map を表示
+with open("google_map.html", "r", encoding="utf-8") as f:
+    html = f.read()
 
-st.set_page_config(page_title="日田市ナビアプリ（デモ）", layout="wide")
-st.title("🗾 日田市マップナビ - 観光 / 防災モード切替（デモ版）")
-
-# モード選択
-mode = st.radio("モードを選択してください", ["観光モード", "防災モード"])
+components.html(html, height=600)
 
 # --- デモの現在地（豆田町あたりの日田市中心地に固定）
 current_location = (33.319, 130.939)
