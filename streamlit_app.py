@@ -4,7 +4,6 @@ import folium
 from streamlit_folium import st_folium
 from datetime import datetime
 from math import radians, sin, cos, sqrt, atan2
-import requests
 
 # ページ設定
 st.set_page_config(
@@ -13,6 +12,13 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# 天気APIインスタンス
+try:
+    weather_api = WeatherAPI()
+    weather_available = True
+except ValueError:
+    weather_available = False
 
 # セッション状態の初期化
 if 'mode' not in st.session_state:
@@ -23,6 +29,10 @@ if 'current_location' not in st.session_state:
     st.session_state.current_location = [33.3219, 130.9414]
 if 'selected_spots' not in st.session_state:
     st.session_state.selected_spots = []
+if 'weather_data' not in st.session_state:
+    st.session_state.weather_data = None
+if 'last_weather_update' not in st.session_state:
+    st.session_state.last_weather_update = None
 
 # データ読み込み関数
 @st.cache_data
@@ -161,7 +171,7 @@ def create_google_maps_link(origin, destination, mode='driving'):
 # サイドバー
 with st.sidebar:
     st.title("🗺️ 日田ナビ")
-    st.caption("APIキー不要版")
+    st.caption("デモ版")
     
     # 言語切替
     language = st.selectbox(
@@ -247,7 +257,19 @@ tourism_df, disaster_df = load_spots_data()
 
 # モードに応じた表示
 if st.session_state.mode == '観光モード':
-    tab1, tab2, tab3, tab4 = st.tabs(["🗺️ マップ", "📋 スポット一覧", "📅 イベント", "💡 おすすめプラン"])
+    # 天気アラート表示（あれば）
+    if weather_available and st.session_state.weather_data:
+        alerts = weather_api.get_weather_alerts(
+            st.session_state.current_location[0],
+            st.session_state.current_location[1]
+        )
+        if alerts:
+            for alert in alerts:
+                st.error(f"⚠️ **気象警報:** {alert['event']}")
+                st.write(f"{alert['description']}")
+                st.caption(f"発表: {alert['sender']} | 期間: {alert['start'].strftime('%m/%d %H:%M')} - {alert['end'].strftime('%m/%d %H:%M')}")
+    
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["🗺️ マップ", "📋 スポット一覧", "🌤️ 天気予報", "📅 イベント", "💡 おすすめプラン"])
     
     with tab1:
         st.subheader("🗺️ 観光マップ")
@@ -411,6 +433,73 @@ if st.session_state.mode == '観光モード':
                 st.divider()
     
     with tab3:
+        st.subheader("🌤️ 天気予報")
+        
+        if weather_available:
+            # 3時間ごとの予報を取得
+            forecasts = weather_api.get_forecast(
+                st.session_state.current_location[0],
+                st.session_state.current_location[1],
+                cnt=16  # 48時間分（3時間×16）
+            )
+            
+            if forecasts:
+                st.markdown("### 📅 今後48時間の予報")
+                
+                # 予報をカード形式で表示
+                cols_per_row = 4
+                for i in range(0, len(forecasts), cols_per_row):
+                    cols = st.columns(cols_per_row)
+                    for j, col in enumerate(cols):
+                        if i + j < len(forecasts):
+                            forecast = forecasts[i + j]
+                            with col:
+                                emoji = get_weather_emoji(forecast['icon'])
+                                
+                                st.markdown(f"#### {forecast['datetime'].strftime('%m/%d %H:%M')}")
+                                st.markdown(f"### {emoji} {forecast['temperature']}°C")
+                                st.caption(forecast['description'])
+                                st.caption(f"💧 降水確率: {forecast['pop']}%")
+                                st.caption(f"💨 風速: {forecast['wind_speed']}m/s")
+                                st.divider()
+                
+                # グラフ表示（気温推移）
+                st.markdown("### 📈 気温推移")
+                
+                # データフレーム作成
+                forecast_df = pd.DataFrame({
+                    '日時': [f['datetime'].strftime('%m/%d %H:%M') for f in forecasts],
+                    '気温': [f['temperature'] for f in forecasts],
+                    '最低気温': [f['temp_min'] for f in forecasts],
+                    '最高気温': [f['temp_max'] for f in forecasts],
+                    '降水確率': [f['pop'] for f in forecasts]
+                })
+                
+                # Streamlitの折れ線グラフ
+                st.line_chart(
+                    forecast_df.set_index('日時')[['気温', '最低気温', '最高気温']],
+                    height=300
+                )
+                
+                st.markdown("### 💧 降水確率")
+                st.bar_chart(
+                    forecast_df.set_index('日時')['降水確率'],
+                    height=200
+                )
+                
+            else:
+                st.error("❌ 天気予報データを取得できませんでした")
+        else:
+            st.warning("⚠️ 天気予報を表示するにはOpenWeather APIキーが必要です")
+            st.markdown("""
+            ### 🔧 設定方法
+            1. OpenWeatherMapでアカウント作成（無料）
+            2. APIキーを取得
+            3. `.env`ファイルに`OPENWEATHER_API_KEY`を設定
+            4. `weather_utils.py`をプロジェクトに追加
+            """)
+    
+    with tab4:
         st.subheader("📅 年間イベントカレンダー")
         
         col1, col2 = st.columns([1, 3])
@@ -440,7 +529,7 @@ if st.session_state.mode == '観光モード':
         else:
             st.info(f"{selected_month}月には現在登録されているイベントはありません")
     
-    with tab4:
+    with tab5:
         st.subheader("💡 おすすめプラン提案")
         
         col1, col2, col3 = st.columns(3)
