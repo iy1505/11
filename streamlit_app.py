@@ -13,13 +13,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 天気APIインスタンス
-try:
-    weather_api = WeatherAPI()
-    weather_available = True
-except ValueError:
-    weather_available = False
-
 # セッション状態の初期化
 if 'mode' not in st.session_state:
     st.session_state.mode = '観光モード'
@@ -29,10 +22,6 @@ if 'current_location' not in st.session_state:
     st.session_state.current_location = [33.3219, 130.9414]
 if 'selected_spots' not in st.session_state:
     st.session_state.selected_spots = []
-if 'weather_data' not in st.session_state:
-    st.session_state.weather_data = None
-if 'last_weather_update' not in st.session_state:
-    st.session_state.last_weather_update = None
 
 # データ読み込み関数
 @st.cache_data
@@ -43,7 +32,7 @@ def load_spots_data():
         disaster_df = pd.read_excel('spots.xlsx', sheet_name='防災')
         return tourism_df, disaster_df
     except FileNotFoundError:
-        # サンプルデータ
+        # サンプルデータを作成
         tourism_df = pd.DataFrame({
             '番号': [1, 2, 3, 4, 5, 6],
             'スポット名': ['豆田町', '日田温泉', '咸宜園', '天ヶ瀬温泉', '小鹿田焼の里', '大山ダム'],
@@ -171,7 +160,7 @@ def create_google_maps_link(origin, destination, mode='driving'):
 # サイドバー
 with st.sidebar:
     st.title("🗺️ 日田ナビ")
-    st.caption("デモ版")
+    st.caption("APIキー不要版")
     
     # 言語切替
     language = st.selectbox(
@@ -235,10 +224,45 @@ with st.sidebar:
     
     st.divider()
     
-    # 天気情報
-    st.subheader("🌤️ 現在の天気")
-    st.info("☀️ 日田市: 晴れ 23°C")
-    st.caption(f"更新: {datetime.now().strftime('%Y/%m/%d %H:%M')}")
+    # 天気情報（シンプル版 - APIキー不要）
+    st.subheader("🌤️ 天気情報")
+    
+    # 現在の日時から天気アイコンを選択（サンプル）
+    hour = datetime.now().hour
+    if 6 <= hour < 18:
+        weather_icon = "☀️"
+        weather_text = "晴れ"
+    else:
+        weather_icon = "🌙"
+        weather_text = "夜間"
+    
+    st.markdown(f"### {weather_icon} {weather_text}")
+    
+    col_w1, col_w2 = st.columns(2)
+    with col_w1:
+        st.metric("気温", "23°C")
+    with col_w2:
+        st.metric("湿度", "65%")
+    
+    # 外部天気サイトへのリンク
+    with st.expander("🔗 詳細な天気情報"):
+        # 気象庁
+        jma_url = "https://www.jma.go.jp/bosai/forecast/#area_type=class20s&area_code=4410200"
+        st.link_button(
+            "📊 気象庁（日田市）",
+            jma_url,
+            use_container_width=True
+        )
+        
+        # Yahoo天気
+        yahoo_weather_url = "https://weather.yahoo.co.jp/weather/jp/44/4410/44204.html"
+        st.link_button(
+            "🌐 Yahoo!天気",
+            yahoo_weather_url,
+            use_container_width=True
+        )
+    
+    st.caption(f"表示: {datetime.now().strftime('%Y/%m/%d %H:%M')}")
     
     st.divider()
     
@@ -257,19 +281,7 @@ tourism_df, disaster_df = load_spots_data()
 
 # モードに応じた表示
 if st.session_state.mode == '観光モード':
-    # 天気アラート表示（あれば）
-    if weather_available and st.session_state.weather_data:
-        alerts = weather_api.get_weather_alerts(
-            st.session_state.current_location[0],
-            st.session_state.current_location[1]
-        )
-        if alerts:
-            for alert in alerts:
-                st.error(f"⚠️ **気象警報:** {alert['event']}")
-                st.write(f"{alert['description']}")
-                st.caption(f"発表: {alert['sender']} | 期間: {alert['start'].strftime('%m/%d %H:%M')} - {alert['end'].strftime('%m/%d %H:%M')}")
-    
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["🗺️ マップ", "📋 スポット一覧", "🌤️ 天気予報", "📅 イベント", "💡 おすすめプラン"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["🗺️ マップ", "📋 スポット一覧", "🌤️ 天気", "📅 イベント", "💡 おすすめプラン"])
     
     with tab1:
         st.subheader("🗺️ 観光マップ")
@@ -433,71 +445,78 @@ if st.session_state.mode == '観光モード':
                 st.divider()
     
     with tab3:
-        st.subheader("🌤️ 天気予報")
+        st.subheader("🌤️ 天気情報・気象情報")
         
-        if weather_available:
-            # 3時間ごとの予報を取得
-            forecasts = weather_api.get_forecast(
-                st.session_state.current_location[0],
-                st.session_state.current_location[1],
-                cnt=16  # 48時間分（3時間×16）
+        st.info("📊 詳細な天気情報は外部サイトをご利用ください")
+        
+        # 天気情報サイトへのリンク集
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("### 🏛️ 公式サイト")
+            
+            # 気象庁
+            st.markdown("#### 気象庁")
+            st.write("日本の公式気象情報")
+            st.link_button(
+                "📊 気象庁 日田市の天気",
+                "https://www.jma.go.jp/bosai/forecast/#area_type=class20s&area_code=4410200",
+                use_container_width=True
             )
             
-            if forecasts:
-                st.markdown("### 📅 今後48時間の予報")
-                
-                # 予報をカード形式で表示
-                cols_per_row = 4
-                for i in range(0, len(forecasts), cols_per_row):
-                    cols = st.columns(cols_per_row)
-                    for j, col in enumerate(cols):
-                        if i + j < len(forecasts):
-                            forecast = forecasts[i + j]
-                            with col:
-                                emoji = get_weather_emoji(forecast['icon'])
-                                
-                                st.markdown(f"#### {forecast['datetime'].strftime('%m/%d %H:%M')}")
-                                st.markdown(f"### {emoji} {forecast['temperature']}°C")
-                                st.caption(forecast['description'])
-                                st.caption(f"💧 降水確率: {forecast['pop']}%")
-                                st.caption(f"💨 風速: {forecast['wind_speed']}m/s")
-                                st.divider()
-                
-                # グラフ表示（気温推移）
-                st.markdown("### 📈 気温推移")
-                
-                # データフレーム作成
-                forecast_df = pd.DataFrame({
-                    '日時': [f['datetime'].strftime('%m/%d %H:%M') for f in forecasts],
-                    '気温': [f['temperature'] for f in forecasts],
-                    '最低気温': [f['temp_min'] for f in forecasts],
-                    '最高気温': [f['temp_max'] for f in forecasts],
-                    '降水確率': [f['pop'] for f in forecasts]
-                })
-                
-                # Streamlitの折れ線グラフ
-                st.line_chart(
-                    forecast_df.set_index('日時')[['気温', '最低気温', '最高気温']],
-                    height=300
-                )
-                
-                st.markdown("### 💧 降水確率")
-                st.bar_chart(
-                    forecast_df.set_index('日時')['降水確率'],
-                    height=200
-                )
-                
-            else:
-                st.error("❌ 天気予報データを取得できませんでした")
-        else:
-            st.warning("⚠️ 天気予報を表示するにはOpenWeather APIキーが必要です")
-            st.markdown("""
-            ### 🔧 設定方法
-            1. OpenWeatherMapでアカウント作成（無料）
-            2. APIキーを取得
-            3. `.env`ファイルに`OPENWEATHER_API_KEY`を設定
-            4. `weather_utils.py`をプロジェクトに追加
-            """)
+            st.markdown("---")
+            
+            # 気象庁の警報・注意報
+            st.markdown("#### 警報・注意報")
+            st.write("気象警報や注意報を確認")
+            st.link_button(
+                "⚠️ 大分県の警報・注意報",
+                "https://www.jma.go.jp/bosai/warning/#area_type=class20s&area_code=4410200",
+                use_container_width=True
+            )
+        
+        with col2:
+            st.markdown("### 🌐 天気予報サイト")
+            
+            # Yahoo天気
+            st.markdown("#### Yahoo!天気")
+            st.write("詳細な天気予報と雨雲レーダー")
+            st.link_button(
+                "🌤️ Yahoo!天気 日田市",
+                "https://weather.yahoo.co.jp/weather/jp/44/4410/44204.html",
+                use_container_width=True
+            )
+            
+            st.markdown("---")
+            
+            # tenki.jp
+            st.markdown("#### tenki.jp")
+            st.write("10日間天気予報")
+            st.link_button(
+                "📱 tenki.jp 日田市",
+                "https://tenki.jp/forecast/9/44/8410/44204/",
+                use_container_width=True
+            )
+        
+        st.divider()
+        
+        # 簡易的な週間天気予報（サンプル）
+        st.markdown("### 📅 週間天気の目安")
+        st.caption("※ 実際の予報は上記の外部サイトでご確認ください")
+        
+        # サンプルの週間天気
+        days = ['月', '火', '水', '木', '金', '土', '日']
+        weather_icons = ['☀️', '⛅', '☁️', '🌧️', '☀️', '☀️', '⛅']
+        temps_high = [25, 24, 22, 20, 23, 26, 25]
+        temps_low = [15, 14, 13, 12, 14, 16, 15]
+        
+        cols = st.columns(7)
+        for i, col in enumerate(cols):
+            with col:
+                st.markdown(f"**{days[i]}**")
+                st.markdown(f"## {weather_icons[i]}")
+                st.write(f"{temps_high[i]}°C")
+                st.caption(f"{temps_low[i]}°C")
     
     with tab4:
         st.subheader("📅 年間イベントカレンダー")
@@ -577,233 +596,3 @@ else:  # 防災モード
     
     with tab1:
         st.subheader("🏥 避難所マップ")
-        
-        col_map, col_control = st.columns([3, 1])
-        
-        with col_control:
-            st.markdown("### 🚨 避難所情報")
-            
-            # 状態フィルター
-            status_filter = st.radio(
-                "表示する避難所",
-                ["すべて", "開設中のみ", "待機中のみ"]
-            )
-            
-            # フィルター適用
-            if status_filter == "開設中のみ":
-                filtered_df = disaster_df[disaster_df['状態'] == '開設中']
-            elif status_filter == "待機中のみ":
-                filtered_df = disaster_df[disaster_df['状態'] == '待機中']
-            else:
-                filtered_df = disaster_df
-            
-            # 避難所選択
-            shelter = st.selectbox(
-                "避難所を選択",
-                ['選択してください'] + filtered_df['スポット名'].tolist()
-            )
-            
-            if shelter != '選択してください':
-                shelter_row = filtered_df[filtered_df['スポット名'] == shelter].iloc[0]
-                shelter_coords = (shelter_row['緯度'], shelter_row['経度'])
-                
-                # 情報表示
-                st.warning(f"🏥 **{shelter}**")
-                
-                # 距離表示
-                distance = calculate_distance(
-                    st.session_state.current_location[0],
-                    st.session_state.current_location[1],
-                    shelter_coords[0],
-                    shelter_coords[1]
-                )
-                
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    st.metric("距離", f"{distance:.2f} km")
-                with col_b:
-                    walk_time = int((distance / 4) * 60)
-                    st.metric("徒歩", f"{walk_time}分")
-                
-                # 詳細情報
-                with st.expander("📊 詳細情報", expanded=True):
-                    st.write(f"**収容人数:** {shelter_row['収容人数']}名")
-                    st.write(f"**状態:** {shelter_row['状態']}")
-                    st.write(f"**説明:** {shelter_row['説明']}")
-                
-                # Google Mapsで開く
-                maps_link = create_google_maps_link(
-                    st.session_state.current_location,
-                    shelter_coords,
-                    'walking'
-                )
-                
-                st.link_button(
-                    "🚶 徒歩ルートを見る（Google Maps）",
-                    maps_link,
-                    use_container_width=True,
-                    type="primary"
-                )
-                
-                show_route = st.checkbox("地図上に直線を表示", value=True)
-            else:
-                shelter = None
-                show_route = False
-        
-        with col_map:
-            # 地図表示
-            m = create_enhanced_map(
-                filtered_df,
-                st.session_state.current_location,
-                selected_spot=shelter if shelter != '選択してください' else None,
-                show_route=show_route
-            )
-            st_folium(m, width=700, height=600, key='disaster_map')
-    
-    with tab2:
-        st.subheader("🗾 ハザードマップ")
-        
-        hazard_type = st.selectbox(
-            "ハザードマップの種類",
-            ["洪水", "土砂災害", "地震", "津波"]
-        )
-        
-        st.info(f"📍 {hazard_type}のハザードマップ情報")
-        
-        # プレースホルダー
-        st.warning("⚠️ ハザードマップの画像データは別途準備が必要です")
-        
-        st.markdown("""
-        ### 📌 確認事項
-        - 最寄りの避難所を事前に確認
-        - 避難経路を複数確認
-        - 非常持ち出し袋の準備
-        - 家族との連絡方法を決めておく
-        """)
-    
-    with tab3:
-        st.subheader("📢 防災情報")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("### 🏪 営業中の店舗")
-            
-            stores = [
-                ("ファミリーマート日田店", "✅ 営業中", "green"),
-                ("ローソン日田中央店", "✅ 営業中", "green"),
-                ("セブンイレブン日田店", "⚠️ 確認中", "orange"),
-                ("マックスバリュ日田店", "✅ 営業中", "green")
-            ]
-            
-            for store_name, status, color in stores:
-                st.markdown(f":{color}[{status}] {store_name}")
-        
-        with col2:
-            st.markdown("### 🥤 近くの自動販売機")
-            st.info("現在地から500m圏内: 8台")
-            st.success("すべて稼働中")
-        
-        st.divider()
-        
-        st.markdown("### 🎒 予算別防災グッズ提案")
-        
-        col1, col2 = st.columns([1, 3])
-        with col1:
-            disaster_budget = st.selectbox(
-                "予算を選択",
-                ["3,000円以下", "3,000～10,000円", "10,000円以上"]
-            )
-        
-        if st.button("💡 おすすめグッズを表示", use_container_width=True):
-            st.success(f"✅ {disaster_budget}のおすすめ防災グッズ")
-            
-            if disaster_budget == "3,000円以下":
-                items = [
-                    "🔦 懐中電灯（LED）- 500円",
-                    "🍫 非常食（3日分）- 1,500円",
-                    "💧 保存水（2L×6本）- 800円"
-                ]
-            elif disaster_budget == "3,000～10,000円":
-                items = [
-                    "🎒 防災リュックセット - 5,000円",
-                    "📻 手回し充電ラジオ - 2,500円",
-                    "🏕️ 簡易トイレセット - 1,500円"
-                ]
-            else:
-                items = [
-                    "🏕️ テント・寝袋セット - 15,000円",
-                    "🔋 大容量ポータブル電源 - 30,000円",
-                    "🚰 浄水器 - 8,000円",
-                    "🍱 長期保存食セット（1ヶ月分）- 12,000円"
-                ]
-            
-            for item in items:
-                st.write(f"• {item}")
-        
-        st.divider()
-        
-        # 緊急連絡先
-        st.markdown("### 📞 緊急連絡先")
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.error("**🚒 消防・救急**")
-            st.markdown("### 119")
-        with col2:
-            st.info("**🚓 警察**")
-            st.markdown("### 110")
-        with col3:
-            st.warning("**🏛️ 日田市役所**")
-            st.markdown("### 0973-22-8888")
-
-# フッター
-st.divider()
-
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.caption("© 2025 日田ナビ（Hita Navi）")
-with col2:
-    st.caption("📧 お問い合わせ")
-with col3:
-    st.caption("🔒 プライバシーポリシー")
-
-# 使い方ヒント
-with st.expander("💡 使い方のヒント"):
-    st.markdown("""
-    ### 📖 日田ナビの使い方
-    
-    #### 観光モードでできること
-    1. **地図でスポットを確認**: マップタブで日田市内の観光スポットを一覧表示
-    2. **目的地を選択**: 行きたい場所を選ぶと、距離と概算時間を表示
-    3. **ルート案内**: 「Google Mapsでルートを見る」ボタンで実際の道路に沿ったナビゲーション
-    4. **スポット検索**: スポット一覧タブでキーワード検索や並び替えが可能
-    5. **イベント情報**: 月別にイベントを確認できます
-    6. **プラン提案**: 予算や滞在時間に合わせたおすすめプランを提案
-    
-    #### 防災モードでできること
-    1. **最寄り避難所の確認**: 現在地から近い避難所を表示
-    2. **避難ルート**: 徒歩での避難ルートをGoogle Mapsで確認
-    3. **開設状況の確認**: 避難所の開設状況と収容人数をリアルタイム表示
-    4. **営業店舗情報**: 災害時の営業中コンビニ・スーパーを確認
-    5. **防災グッズ提案**: 予算に応じた防災グッズのおすすめ
-    
-    #### 便利な機能
-    - **現在地の設定**: サイドバーから緯度・経度を入力、またはプリセット位置から選択
-    - **カテゴリーフィルター**: 観光地、温泉、歴史など、カテゴリー別に絞り込み
-    - **距離表示**: すべてのスポットに現在地からの距離を表示
-    - **直線表示**: 地図上で現在地から目的地への直線を表示可能
-    
-    #### Google Maps連携について
-    - 実際の道路に沿ったルート案内は、「Google Mapsでルートを見る」ボタンから外部アプリで確認できます
-    - 移動手段（車・徒歩・自転車・公共交通）を選択してからボタンを押してください
-    - スマートフォンではGoogle Mapsアプリが自動的に開きます
-    """)
-
-# デバッグ情報（開発時のみ表示）
-if st.checkbox("🔧 デバッグ情報を表示", value=False):
-    st.json({
-        "現在地": st.session_state.current_location,
-        "モード": st.session_state.mode,
-        "言語": st.session_state.language
-    })
