@@ -28,16 +28,54 @@ if 'selected_spots' not in st.session_state:
 def load_spots_data():
     """Excelファイルからスポットデータを読み込む"""
     try:
+        # Excelファイルから読み込み
         tourism_df = pd.read_excel('spots.xlsx', sheet_name='観光')
         disaster_df = pd.read_excel('spots.xlsx', sheet_name='防災')
+        
+        # カラム名の確認と標準化
+        required_cols_tourism = ['No', 'スポット名', '緯度', '経度', '説明']
+        required_cols_disaster = ['No', 'スポット名', '緯度', '経度', '説明']
+        
+        # 必須カラムの確認
+        for col in required_cols_tourism:
+            if col not in tourism_df.columns:
+                st.error(f"❌ 観光シートに'{col}'カラムがありません")
+                return None, None
+        
+        for col in required_cols_disaster:
+            if col not in disaster_df.columns:
+                st.error(f"❌ 防災シートに'{col}'カラムがありません")
+                return None, None
+        
+        # オプションカラムの追加（存在しない場合）
+        if '所要時間（参考）' not in tourism_df.columns:
+            tourism_df['所要時間（参考）'] = 60  # デフォルト60分
+        if 'カテゴリー' not in tourism_df.columns:
+            tourism_df['カテゴリー'] = '観光地'
+        if '営業時間' not in tourism_df.columns:
+            tourism_df['営業時間'] = '終日'
+        if '料金' not in tourism_df.columns:
+            tourism_df['料金'] = '無料'
+        
+        if '収容人数' not in disaster_df.columns:
+            disaster_df['収容人数'] = 0
+        if '状態' not in disaster_df.columns:
+            disaster_df['状態'] = '待機中'
+        
+        st.success(f"✅ Excelファイル読み込み成功: 観光{len(tourism_df)}件、避難所{len(disaster_df)}件")
+        
         return tourism_df, disaster_df
+        
     except FileNotFoundError:
+        st.warning("⚠️ spots.xlsxが見つかりません。サンプルデータを使用します。")
+        
         # サンプルデータを作成
         tourism_df = pd.DataFrame({
-            '番号': [1, 2, 3, 4, 5, 6],
+            'No': [1, 2, 3, 4, 5, 6],
             'スポット名': ['豆田町', '日田温泉', '咸宜園', '天ヶ瀬温泉', '小鹿田焼の里', '大山ダム'],
             '緯度': [33.3219, 33.3200, 33.3240, 33.2967, 33.3500, 33.3800],
             '経度': [130.9414, 130.9400, 130.9430, 130.9167, 130.9600, 130.9200],
+            '所要時間（参考）': [60, 120, 45, 90, 75, 30],
             '説明': ['江戸時代の町並みが残る歴史的な地区', '日田の名湯・温泉施設', 
                    '日本最大の私塾跡・歴史的教育施設', '自然豊かな温泉街', 
                    '伝統工芸の陶器の里', '美しい景観のダム'],
@@ -46,16 +84,21 @@ def load_spots_data():
             '料金': ['無料', '500円', '300円', '無料', '無料', '無料']
         })
         disaster_df = pd.DataFrame({
-            '番号': [1, 2, 3, 4, 5],
+            'No': [1, 2, 3, 4, 5],
             'スポット名': ['日田市役所（避難所）', '中央公民館', '総合体育館', '桂林公民館', '三花公民館'],
             '緯度': [33.3219, 33.3250, 33.3180, 33.3300, 33.3100],
             '経度': [130.9414, 130.9450, 130.9380, 130.9500, 130.9350],
+            '所要時間（参考）': ['-', '-', '-', '-', '-'],
             '説明': ['市役所・第一避難所', '中央地区の避難所', '大規模避難所', 
                    '桂林地区の避難所', '三花地区の避難所'],
             '収容人数': [500, 300, 800, 200, 250],
             '状態': ['開設中', '開設中', '開設中', '待機中', '待機中']
         })
         return tourism_df, disaster_df
+    
+    except Exception as e:
+        st.error(f"❌ Excelファイルの読み込みエラー: {e}")
+        return None, None
 
 # 距離計算関数
 def calculate_distance(lat1, lng1, lat2, lng2):
