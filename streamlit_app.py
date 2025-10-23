@@ -27,6 +27,25 @@ if 'selected_spots' not in st.session_state:
 @st.cache_data
 def load_spots_data():
     """Excelファイルからスポットデータを読み込む"""
+    import os
+    
+    # デバッグ情報を表示
+    current_dir = os.getcwd()
+    st.info(f"🔍 現在の作業ディレクトリ: {current_dir}")
+    
+    # ファイル一覧を表示
+    files_in_dir = os.listdir(current_dir)
+    st.info(f"📂 このフォルダ内のファイル: {files_in_dir}")
+    
+    # spots.xlsxの存在確認
+    excel_path = os.path.join(current_dir, 'spots.xlsx')
+    st.info(f"🔎 探しているパス: {excel_path}")
+    
+    if os.path.exists(excel_path):
+        st.success(f"✅ spots.xlsxが見つかりました！")
+    else:
+        st.error(f"❌ spots.xlsxが見つかりません")
+    
     try:
         # Excelファイルから読み込み
         tourism_df = pd.read_excel('spots.xlsx', sheet_name='観光')
@@ -205,6 +224,21 @@ with st.sidebar:
     st.title("🗺️ 日田ナビ")
     st.caption("APIキー不要版")
     
+    # Excelファイルアップロード機能
+    with st.expander("📤 Excelファイルをアップロード"):
+        uploaded_file = st.file_uploader("spots.xlsxを選択", type=['xlsx'])
+        
+        if uploaded_file is not None:
+            st.success("✅ ファイルがアップロードされました")
+            
+            # アップロードされたファイルを一時的に保存
+            with open('spots.xlsx', 'wb') as f:
+                f.write(uploaded_file.getbuffer())
+            
+            st.info("アプリを再読み込みしてください")
+            if st.button("🔄 再読み込み"):
+                st.rerun()
+    
     # 言語切替
     language = st.selectbox(
         "言語 / Language",
@@ -380,6 +414,7 @@ if st.session_state.mode == '観光モード':
                     st.write(f"**カテゴリー:** {dest_row['カテゴリー']}")
                     st.write(f"**営業時間:** {dest_row['営業時間']}")
                     st.write(f"**料金:** {dest_row['料金']}")
+                    st.write(f"**所要時間（参考）:** {dest_row['所要時間（参考）']}分")
                 
                 st.markdown("---")
                 st.markdown("### 🚗 ルート案内")
