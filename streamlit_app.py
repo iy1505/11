@@ -1,4 +1,7 @@
 import streamlit as st
+import os
+st.write("📂 今いるフォルダ:", os.getcwd())
+st.write("📁 このフォルダにあるファイル:", os.listdir())
 import pandas as pd
 import folium
 from streamlit_folium import st_folium
