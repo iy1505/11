@@ -27,25 +27,6 @@ if 'selected_spots' not in st.session_state:
 @st.cache_data
 def load_spots_data():
     """Excelファイルからスポットデータを読み込む"""
-    import os
-    
-    # デバッグ情報を表示
-    current_dir = os.getcwd()
-    st.info(f"🔍 現在の作業ディレクトリ: {current_dir}")
-    
-    # ファイル一覧を表示
-    files_in_dir = os.listdir(current_dir)
-    st.info(f"📂 このフォルダ内のファイル: {files_in_dir}")
-    
-    # spots.xlsxの存在確認
-    excel_path = os.path.join(current_dir, 'spots.xlsx')
-    st.info(f"🔎 探しているパス: {excel_path}")
-    
-    if os.path.exists(excel_path):
-        st.success(f"✅ spots.xlsxが見つかりました！")
-    else:
-        st.error(f"❌ spots.xlsxが見つかりません")
-    
     try:
         # Excelファイルから読み込み
         tourism_df = pd.read_excel('spots.xlsx', sheet_name='観光')
