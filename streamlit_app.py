@@ -14,7 +14,7 @@ except ImportError:
 
 # ページ設定
 st.set_page_config(
-    page_title="日田ナビ",
+    page_title="日田なび",
     page_icon="🗺️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -481,7 +481,7 @@ with st.sidebar:
 
 # メインコンテンツ
 # ページトップのタイトル
-st.title("🗺️ 日田ナビ")
+st.title("🗺️ 日田なび")
 st.caption("Ver. 2.1 - 観光と防災におけるタイムパフォーマンスを向上")
 st.divider()
 
