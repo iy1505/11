@@ -481,7 +481,7 @@ with st.sidebar:
 
 # メインコンテンツ
 # ページトップのタイトル
-st.title("🗺️ 日田市総合案内コンシェルジュ")
+st.title("🗺️ 日田ナビ")
 st.caption("Ver. 2.1 - 観光と防災におけるタイムパフォーマンスを向上")
 st.divider()
 
