@@ -14,7 +14,7 @@ except ImportError:
 
 # ページ設定
 st.set_page_config(
-    page_title="日田市総合案内コンシェルジュ",
+    page_title="日田ナビ",
     page_icon="🗺️",
     layout="wide",
     initial_sidebar_state="expanded"
