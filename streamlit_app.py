@@ -1343,7 +1343,7 @@ else:  # 防災モード
             st.markdown("### 110")
         with col3:
             st.warning("**🏛️ 日田市役所**")
-            st.markdown("### 0973-22-8888")
+            st.markdown("###0973-23-3111")
 
 # フッター
 st.divider()
