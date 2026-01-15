@@ -200,34 +200,6 @@ def create_google_maps_link(origin, destination, mode='driving'):
 
 # サイドバー
 with st.sidebar:
-    st.title("🗺️ 日田ナビ")
-    st.caption("APIキー不要版")
-    
-    # Excelファイルアップロード機能
-    with st.expander("📤 Excelファイルをアップロード"):
-        uploaded_file = st.file_uploader("spots.xlsxを選択", type=['xlsx'])
-        
-        if uploaded_file is not None:
-            st.success("✅ ファイルがアップロードされました")
-            
-            # アップロードされたファイルを一時的に保存
-            with open('spots.xlsx', 'wb') as f:
-                f.write(uploaded_file.getbuffer())
-            
-            st.info("アプリを再読み込みしてください")
-            if st.button("🔄 再読み込み"):
-                st.rerun()
-    
-    # 言語切替
-    language = st.selectbox(
-        "言語 / Language",
-        ["日本語", "English"],
-        key='language_selector'
-    )
-    st.session_state.language = language
-    
-    st.divider()
-    
     # モード選択
     mode = st.radio(
         "モード選択",
@@ -330,29 +302,16 @@ with st.sidebar:
         st.metric("開設中", "3箇所", delta="安全")
 
 # メインコンテンツ
-st.title(f"📍 {st.session_state.mode}")
+# ページトップのタイトル
+st.title("🗺️ 日田なび")
+st.caption("Ver. 2.1 - 観光と防災におけるタイムパフォーマンスを向上")
+st.divider()
 
 # データ読み込み
 tourism_df, disaster_df = load_spots_data()
 
-# データ読み込みの確認
-if tourism_df is not None and disaster_df is not None:
-    # デバッグ情報を表示
-    with st.expander("🔍 データ読み込み状況（デバッグ用）", expanded=False):
-        st.write(f"**観光データ:** {len(tourism_df)}件")
-        st.write(f"**カラム名:** {list(tourism_df.columns)}")
-        st.write("**先頭3件のデータ:**")
-        st.dataframe(tourism_df.head(3))
-        
-        st.divider()
-        
-        st.write(f"**防災データ:** {len(disaster_df)}件")
-        st.write(f"**カラム名:** {list(disaster_df.columns)}")
-        st.write("**先頭3件のデータ:**")
-        st.dataframe(disaster_df.head(3))
-else:
-    st.error("❌ データの読み込みに失敗しました")
-    st.stop()
+# 現在のモード表示
+st.subheader(f"📍 {st.session_state.mode}")
 
 # モードに応じた表示
 if st.session_state.mode == '観光モード':
