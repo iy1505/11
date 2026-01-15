@@ -903,7 +903,7 @@ with st.expander("💡 使い方のヒント"):
     - スマートフォンではGoogle Mapsアプリが自動的に開きます
     """)
 
-# デバッグ情報（開発時の
+# デバッグ情報（開発時のみ表示）
 if st.checkbox("🔧 デバッグ情報を表示", value=False):
     st.json({
         "現在地": st.session_state.current_location,
