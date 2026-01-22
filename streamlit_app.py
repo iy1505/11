@@ -463,7 +463,7 @@ with st.sidebar:
         )
         
         # Yahoo天気
-        yahoo_weather_url = "https://weather.yahoo.co.jp/weather/jp/44/4410/44204.html"
+        yahoo_weather_url = "https://weather.yahoo.co.jp/weather/jp/44/8330/44204.html"
         st.link_button(
             "🌐 Yahoo!天気",
             yahoo_weather_url,
