@@ -264,8 +264,16 @@ def optimize_route_disaster(current_loc: List[float], spots_df: pd.DataFrame, se
     return route, total_distance, total_time
 
 # 地図作成関数（改良版）
-def create_enhanced_map(spots_df, center_location, selected_spot=None, show_route=False):
-    """Foliumマップを作成"""
+def create_enhanced_map(spots_df, center_location, selected_spot=None, show_route=False, selected_spots_list=None):
+    """Foliumマップを作成
+    
+    Args:
+        spots_df: スポットデータフレーム
+        center_location: 現在地の座標
+        selected_spot: 単一選択時の選択されたスポット名
+        show_route: ルート表示フラグ
+        selected_spots_list: 複数選択時の選択されたスポット名のリスト
+    """
     m = folium.Map(
         location=center_location,
         zoom_start=13,
@@ -313,8 +321,15 @@ def create_enhanced_map(spots_df, center_location, selected_spot=None, show_rout
         
         popup_html += "</div>"
         
-        # マーカーの色を選択されたスポットで変更
-        marker_color = 'green' if selected_spot == row['スポット名'] else 'blue'
+        # マーカーの色を決定
+        # 複数選択モードの場合は、selected_spots_listに含まれるスポットを赤色に
+        if selected_spots_list and row['スポット名'] in selected_spots_list:
+            marker_color = 'red'
+        # 単一選択モードの場合は、選択されたスポットを緑色に
+        elif selected_spot == row['スポット名']:
+            marker_color = 'green'
+        else:
+            marker_color = 'blue'
         
         folium.Marker(
             [row['緯度'], row['経度']],
@@ -511,13 +526,6 @@ if st.session_state.mode == '観光モード':
         with col_control:
             st.markdown("### 🎯 目的地選択")
 
-            # 選択モード
-            selection_mode = st.radio(
-                "選択モード",
-                ["単一スポット", "複数スポット（最適化ルート）"],
-                key='map_selection_mode'
-            )
-
             # カテゴリーフィルター
             categories = ['すべて'] + sorted(tourism_df['カテゴリ'].unique().tolist())
             selected_category = st.selectbox("カテゴリー", categories, key='map_category')
@@ -528,204 +536,200 @@ if st.session_state.mode == '観光モード':
             else:
                 filtered_df = tourism_df
 
-            if selection_mode == "単一スポット":
-                # 単一目的地選択
-                destination = st.selectbox(
-                    "行きたい場所",
-                    ['選択してください'] + filtered_df['スポット名'].tolist(),
-                    key='destination_select'
+            # 複数スポット選択（0個以上選択可能）
+            selected_spots_names = st.multiselect(
+                "訪問したいスポットを選択",
+                filtered_df['スポット名'].tolist(),
+                default=[],
+                key='map_multi_select',
+                help="1つだけ選択した場合は単一ルート、2つ以上選択した場合は最適化ルートを表示します"
+            )
+
+            # 選択数に応じた処理
+            if len(selected_spots_names) == 0:
+                # スポット未選択
+                st.info("👆 訪問したいスポットを選択してください")
+                show_route = False
+                
+            elif len(selected_spots_names) == 1:
+                # 単一スポット選択モード
+                destination = selected_spots_names[0]
+                dest_row = filtered_df[filtered_df['スポット名'] == destination].iloc[0]
+                dest_coords = (dest_row['緯度'], dest_row['経度'])
+
+                # 情報表示
+                st.info(f"📍 **{destination}**")
+
+                # 距離表示
+                distance = calculate_distance(
+                    st.session_state.current_location[0],
+                    st.session_state.current_location[1],
+                    dest_coords[0],
+                    dest_coords[1]
                 )
 
-                if destination != '選択してください':
-                    dest_row = filtered_df[filtered_df['スポット名'] == destination].iloc[0]
-                    dest_coords = (dest_row['緯度'], dest_row['経度'])
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    st.metric("直線距離", f"{distance:.2f} km")
+                with col_b:
+                    # 徒歩時間の概算（時速4km）
+                    walk_time = int((distance / 4) * 60)
+                    st.metric("徒歩概算", f"{walk_time}分")
 
-                    # 情報表示
-                    st.info(f"📍 **{destination}**")
+                # 詳細情報
+                with st.expander("📝 詳細情報", expanded=True):
+                    st.write(f"**説明:** {dest_row['説明']}")
+                    st.write(f"**カテゴリー:** {dest_row['カテゴリ']}")
+                    st.write(f"**営業時間:** {dest_row['営業時間']}")
+                    st.write(f"**料金:** {dest_row['料金']}")
+                    st.write(f"**所要時間（参考）:** {dest_row['所要時間（参考）']}分")
+                    st.write(f"**待ち時間:** {dest_row['待ち時間（分）']}分")
+                    st.write(f"**混雑状況:** {dest_row['混雑状況']}")
 
-                    # 距離表示
-                    distance = calculate_distance(
-                        st.session_state.current_location[0],
-                        st.session_state.current_location[1],
-                        dest_coords[0],
-                        dest_coords[1]
-                    )
+                st.markdown("---")
+                st.markdown("### 🚗 ルート案内")
 
-                    col_a, col_b = st.columns(2)
-                    with col_a:
-                        st.metric("直線距離", f"{distance:.2f} km")
-                    with col_b:
-                        # 徒歩時間の概算（時速4km）
-                        walk_time = int((distance / 4) * 60)
-                        st.metric("徒歩概算", f"{walk_time}分")
+                # 移動手段選択
+                travel_mode = st.selectbox(
+                    "移動手段",
+                    ["driving", "walking", "bicycling", "transit"],
+                    format_func=lambda x: {
+                        'driving': '🚗 車',
+                        'walking': '🚶 徒歩',
+                        'bicycling': '🚲 自転車',
+                        'transit': '🚌 公共交通'
+                    }[x],
+                    key='map_travel_mode'
+                )
 
-                    # 詳細情報
-                    with st.expander("📝 詳細情報", expanded=True):
-                        st.write(f"**説明:** {dest_row['説明']}")
-                        st.write(f"**カテゴリー:** {dest_row['カテゴリ']}")
-                        st.write(f"**営業時間:** {dest_row['営業時間']}")
-                        st.write(f"**料金:** {dest_row['料金']}")
-                        st.write(f"**所要時間（参考）:** {dest_row['所要時間（参考）']}分")
-                        st.write(f"**待ち時間:** {dest_row['待ち時間（分）']}分")
-                        st.write(f"**混雑状況:** {dest_row['混雑状況']}")
+                # Google Mapsで開くボタン
+                maps_link = create_google_maps_link(
+                    st.session_state.current_location,
+                    dest_coords,
+                    travel_mode
+                )
 
-                    st.markdown("---")
-                    st.markdown("### 🚗 ルート案内")
+                st.link_button(
+                    "🗺️ Google Mapsでルートを見る",
+                    maps_link,
+                    use_container_width=True,
+                    type="primary"
+                )
 
-                    # 移動手段選択
-                    travel_mode = st.selectbox(
-                        "移動手段",
-                        ["driving", "walking", "bicycling", "transit"],
-                        format_func=lambda x: {
-                            'driving': '🚗 車',
-                            'walking': '🚶 徒歩',
-                            'bicycling': '🚲 自転車',
-                            'transit': '🚌 公共交通'
-                        }[x],
-                        key='map_travel_mode'
-                    )
-
-                    # Google Mapsで開くボタン
-                    maps_link = create_google_maps_link(
-                        st.session_state.current_location,
-                        dest_coords,
-                        travel_mode
-                    )
-
-                    st.link_button(
-                        "🗺️ Google Mapsでルートを見る",
-                        maps_link,
-                        use_container_width=True,
-                        type="primary"
-                    )
-
-                    # 地図上に直線ルートを表示
-                    show_route = st.checkbox("地図上に直線を表示", value=True, key='map_show_route')
-                else:
-                    destination = None
-                    show_route = False
-
-            else:  # 複数スポット選択モード
+                # 地図上に直線ルートを表示
+                show_route = st.checkbox("地図上に直線を表示", value=True, key='map_show_route')
+                
+            else:
+                # 複数スポット選択モード（2つ以上）
                 destination = None
                 show_route = False
 
-                st.markdown("### 🎯 複数スポット選択")
+                st.markdown("### 🎯 複数スポット選択中")
+                st.success(f"✅ {len(selected_spots_names)}箇所のスポットを選択中")
 
-                # 複数スポット選択
-                selected_spots_names = st.multiselect(
-                    "訪問したいスポットを選択（2つ以上）",
-                    filtered_df['スポット名'].tolist(),
-                    default=[],
-                    key='map_multi_select'
+                # 移動手段選択
+                travel_mode_opt = st.selectbox(
+                    "🚗 移動手段",
+                    ["driving", "walking", "bicycling", "transit"],
+                    format_func=lambda x: {
+                        'driving': '🚗 車',
+                        'walking': '🚶 徒歩',
+                        'bicycling': '🚲 自転車',
+                        'transit': '🚌 公共交通'
+                    }[x],
+                    key='map_opt_travel_mode'
                 )
 
-                if len(selected_spots_names) >= 2:
-                    # 移動手段選択
-                    travel_mode_opt = st.selectbox(
-                        "🚗 移動手段",
-                        ["driving", "walking", "bicycling", "transit"],
-                        format_func=lambda x: {
-                            'driving': '🚗 車',
-                            'walking': '🚶 徒歩',
-                            'bicycling': '🚲 自転車',
-                            'transit': '🚌 公共交通'
-                        }[x],
-                        key='map_opt_travel_mode'
+                if st.button("🎯 最適化ルートを算出", type="primary", use_container_width=True, key='map_optimize_btn'):
+                    # 選択されたスポットのインデックスを取得
+                    selected_indices = []
+                    for spot_name in selected_spots_names:
+                        idx = tourism_df[tourism_df['スポット名'] == spot_name].index[0]
+                        selected_indices.append(idx)
+
+                    # 最適化ルート算出
+                    route, total_dist, total_time = optimize_route_tourism(
+                        st.session_state.current_location,
+                        tourism_df,
+                        selected_indices
                     )
 
-                    if st.button("🎯 最適化ルートを算出", type="primary", use_container_width=True, key='map_optimize_btn'):
-                        # 選択されたスポットのインデックスを取得
-                        selected_indices = []
-                        for spot_name in selected_spots_names:
-                            idx = tourism_df[tourism_df['スポット名'] == spot_name].index[0]
-                            selected_indices.append(idx)
+                    # セッション状態に保存
+                    st.session_state.map_optimized_route = {
+                        'route': route,
+                        'total_distance': total_dist,
+                        'total_time': total_time,
+                        'mode': travel_mode_opt
+                    }
 
-                        # 最適化ルート算出
-                        route, total_dist, total_time = optimize_route_tourism(
-                            st.session_state.current_location,
-                            tourism_df,
-                            selected_indices
+                    st.success("✅ 最適化ルートを算出しました！")
+                    st.rerun()
+
+                # 最適化ルート表示
+                if 'map_optimized_route' in st.session_state and st.session_state.map_optimized_route is not None:
+                    route_data = st.session_state.map_optimized_route
+                    route = route_data['route']
+                    total_dist = route_data['total_distance']
+                    total_time = route_data['total_time']
+
+                    st.markdown("---")
+                    st.markdown("### 📋 最適化された訪問順序")
+
+                    # 統計情報
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("総移動距離", f"{total_dist:.2f} km")
+                    with col2:
+                        hours = int(total_time // 60)
+                        minutes = int(total_time % 60)
+                        st.metric("総所要時間", f"{hours}時間{minutes}分")
+
+                    # 訪問順序リスト（簡易版）
+                    with st.expander("📍 訪問順序を確認", expanded=False):
+                        for i, idx in enumerate(route, 1):
+                            spot = tourism_df.iloc[idx]
+                            st.write(f"{i}. {spot['スポット名']}")
+
+                    # Google Maps複数経由地リンク生成
+                    if len(route) > 0:
+                        origin = st.session_state.current_location
+
+                        if len(route) == 1:
+                            dest_spot = tourism_df.iloc[route[0]]
+                            destination_coords = (dest_spot['緯度'], dest_spot['経度'])
+                            waypoints = []
+                        else:
+                            waypoints = []
+                            for idx in route[:-1]:
+                                spot = tourism_df.iloc[idx]
+                                waypoints.append((spot['緯度'], spot['経度']))
+
+                            dest_spot = tourism_df.iloc[route[-1]]
+                            destination_coords = (dest_spot['緯度'], dest_spot['経度'])
+
+                        maps_url = create_google_maps_multi_link(
+                            origin,
+                            waypoints,
+                            destination_coords,
+                            route_data['mode']
                         )
 
-                        # セッション状態に保存
-                        st.session_state.map_optimized_route = {
-                            'route': route,
-                            'total_distance': total_dist,
-                            'total_time': total_time,
-                            'mode': travel_mode_opt
-                        }
-
-                        st.success("✅ 最適化ルートを算出しました！")
-                        st.rerun()
-
-                    # 最適化ルート表示
-                    if 'map_optimized_route' in st.session_state and st.session_state.map_optimized_route is not None:
-                        route_data = st.session_state.map_optimized_route
-                        route = route_data['route']
-                        total_dist = route_data['total_distance']
-                        total_time = route_data['total_time']
-
-                        st.markdown("---")
-                        st.markdown("### 📋 最適化された訪問順序")
-
-                        # 統計情報
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.metric("総移動距離", f"{total_dist:.2f} km")
-                        with col2:
-                            hours = int(total_time // 60)
-                            minutes = int(total_time % 60)
-                            st.metric("総所要時間", f"{hours}時間{minutes}分")
-
-                        # 訪問順序リスト（簡易版）
-                        with st.expander("📍 訪問順序を確認", expanded=False):
-                            for i, idx in enumerate(route, 1):
-                                spot = tourism_df.iloc[idx]
-                                st.write(f"{i}. {spot['スポット名']}")
-
-                        # Google Maps複数経由地リンク生成
-                        if len(route) > 0:
-                            origin = st.session_state.current_location
-
-                            if len(route) == 1:
-                                dest_spot = tourism_df.iloc[route[0]]
-                                destination_coords = (dest_spot['緯度'], dest_spot['経度'])
-                                waypoints = []
-                            else:
-                                waypoints = []
-                                for idx in route[:-1]:
-                                    spot = tourism_df.iloc[idx]
-                                    waypoints.append((spot['緯度'], spot['経度']))
-
-                                dest_spot = tourism_df.iloc[route[-1]]
-                                destination_coords = (dest_spot['緯度'], dest_spot['経度'])
-
-                            maps_url = create_google_maps_multi_link(
-                                origin,
-                                waypoints,
-                                destination_coords,
-                                route_data['mode']
-                            )
-
-                            st.link_button(
-                                "🗺️ Google Mapで最適化ルートを開く",
-                                maps_url,
-                                use_container_width=True,
-                                type="primary"
-                            )
-
-                elif len(selected_spots_names) == 1:
-                    st.warning("⚠️ 2つ以上のスポットを選択してください。")
-                else:
-                    st.info("👆 訪問したいスポットを2つ以上選択してください。")
+                        st.link_button(
+                            "🗺️ Google Mapで最適化ルートを開く",
+                            maps_url,
+                            use_container_width=True,
+                            type="primary"
+                        )
         
         with col_map:
             # 地図表示（カテゴリーフィルターを適用）
+            # 選択されたスポットのリストを渡す
             m = create_enhanced_map(
-                filtered_df,  # tourism_dfではなくfiltered_dfを使用
+                filtered_df,
                 st.session_state.current_location,
-                selected_spot=destination if destination != '選択してください' else None,
-                show_route=show_route
+                selected_spot=selected_spots_names[0] if len(selected_spots_names) == 1 else None,
+                show_route=show_route if 'show_route' in locals() else False,
+                selected_spots_list=selected_spots_names if len(selected_spots_names) > 0 else None
             )
             st_folium(m, width=700, height=600, key='tourism_map')
     
@@ -1044,13 +1048,6 @@ else:  # 防災モード
         with col_control:
             st.markdown("### 🚨 避難所情報")
 
-            # 選択モード
-            selection_mode = st.radio(
-                "選択モード",
-                ["単一避難所", "複数避難所（最適化ルート）"],
-                key='disaster_selection_mode'
-            )
-
             # 状態フィルター
             status_filter = st.radio(
                 "表示する避難所",
@@ -1066,169 +1063,165 @@ else:  # 防災モード
             else:
                 filtered_df = disaster_df
 
-            if selection_mode == "単一避難所":
-                # 単一避難所選択
-                shelter = st.selectbox(
-                    "避難所を選択",
-                    ['選択してください'] + filtered_df['スポット名'].tolist(),
-                    key='disaster_shelter_select'
+            # 複数避難所選択（0個以上選択可能）
+            selected_shelters_names = st.multiselect(
+                "避難所を選択",
+                filtered_df['スポット名'].tolist(),
+                default=[],
+                key='disaster_multi_select',
+                help="1つだけ選択した場合は単一ルート、2つ以上選択した場合は最適化避難ルートを表示します"
+            )
+
+            # 選択数に応じた処理
+            if len(selected_shelters_names) == 0:
+                # 避難所未選択
+                st.info("👆 避難所を選択してください")
+                show_route = False
+                
+            elif len(selected_shelters_names) == 1:
+                # 単一避難所選択モード
+                shelter = selected_shelters_names[0]
+                shelter_row = filtered_df[filtered_df['スポット名'] == shelter].iloc[0]
+                shelter_coords = (shelter_row['緯度'], shelter_row['経度'])
+
+                # 情報表示
+                st.warning(f"🏥 **{shelter}**")
+
+                # 距離表示
+                distance = calculate_distance(
+                    st.session_state.current_location[0],
+                    st.session_state.current_location[1],
+                    shelter_coords[0],
+                    shelter_coords[1]
                 )
 
-                if shelter != '選択してください':
-                    shelter_row = filtered_df[filtered_df['スポット名'] == shelter].iloc[0]
-                    shelter_coords = (shelter_row['緯度'], shelter_row['経度'])
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    st.metric("距離", f"{distance:.2f} km")
+                with col_b:
+                    walk_time = int((distance / 4) * 60)
+                    st.metric("徒歩", f"{walk_time}分")
 
-                    # 情報表示
-                    st.warning(f"🏥 **{shelter}**")
+                # 詳細情報
+                with st.expander("📊 詳細情報", expanded=True):
+                    st.write(f"**収容人数:** {shelter_row['収容人数']}名")
+                    st.write(f"**状態:** {shelter_row['状態']}")
+                    st.write(f"**説明:** {shelter_row['説明']}")
 
-                    # 距離表示
-                    distance = calculate_distance(
-                        st.session_state.current_location[0],
-                        st.session_state.current_location[1],
-                        shelter_coords[0],
-                        shelter_coords[1]
-                    )
+                # Google Mapsで開く
+                maps_link = create_google_maps_link(
+                    st.session_state.current_location,
+                    shelter_coords,
+                    'walking'
+                )
 
-                    col_a, col_b = st.columns(2)
-                    with col_a:
-                        st.metric("距離", f"{distance:.2f} km")
-                    with col_b:
-                        walk_time = int((distance / 4) * 60)
-                        st.metric("徒歩", f"{walk_time}分")
+                st.link_button(
+                    "🚶 徒歩ルートを見る（Google Maps）",
+                    maps_link,
+                    use_container_width=True,
+                    type="primary"
+                )
 
-                    # 詳細情報
-                    with st.expander("📊 詳細情報", expanded=True):
-                        st.write(f"**収容人数:** {shelter_row['収容人数']}名")
-                        st.write(f"**状態:** {shelter_row['状態']}")
-                        st.write(f"**説明:** {shelter_row['説明']}")
-
-                    # Google Mapsで開く
-                    maps_link = create_google_maps_link(
-                        st.session_state.current_location,
-                        shelter_coords,
-                        'walking'
-                    )
-
-                    st.link_button(
-                        "🚶 徒歩ルートを見る（Google Maps）",
-                        maps_link,
-                        use_container_width=True,
-                        type="primary"
-                    )
-
-                    show_route = st.checkbox("地図上に直線を表示", value=True, key='disaster_show_route')
-                else:
-                    shelter = None
-                    show_route = False
-
-            else:  # 複数避難所選択モード
+                show_route = st.checkbox("地図上に直線を表示", value=True, key='disaster_show_route')
+                
+            else:
+                # 複数避難所選択モード（2つ以上）
                 shelter = None
                 show_route = False
 
-                st.markdown("### 🎯 複数避難所選択")
+                st.markdown("### 🎯 複数避難所選択中")
+                st.success(f"✅ {len(selected_shelters_names)}箇所の避難所を選択中")
 
-                # 複数避難所選択
-                selected_shelters_names = st.multiselect(
-                    "避難したい避難所を選択（2つ以上）",
-                    filtered_df['スポット名'].tolist(),
-                    default=[],
-                    key='disaster_multi_select'
-                )
+                if st.button("🎯 最適化避難ルートを算出", type="primary", use_container_width=True, key='disaster_optimize_btn'):
+                    # 選択された避難所のインデックスを取得
+                    selected_indices = []
+                    for shelter_name in selected_shelters_names:
+                        idx = disaster_df[disaster_df['スポット名'] == shelter_name].index[0]
+                        selected_indices.append(idx)
 
-                if len(selected_shelters_names) >= 2:
-                    if st.button("🎯 最適化避難ルートを算出", type="primary", use_container_width=True, key='disaster_optimize_btn'):
-                        # 選択された避難所のインデックスを取得
-                        selected_indices = []
-                        for shelter_name in selected_shelters_names:
-                            idx = disaster_df[disaster_df['スポット名'] == shelter_name].index[0]
-                            selected_indices.append(idx)
+                    # 最適化ルート算出（防災モード：最近傍法）
+                    route, total_dist, total_time = optimize_route_disaster(
+                        st.session_state.current_location,
+                        disaster_df,
+                        selected_indices
+                    )
 
-                        # 最適化ルート算出（防災モード：最近傍法）
-                        route, total_dist, total_time = optimize_route_disaster(
-                            st.session_state.current_location,
-                            disaster_df,
-                            selected_indices
+                    # セッション状態に保存
+                    st.session_state.disaster_optimized_route = {
+                        'route': route,
+                        'total_distance': total_dist,
+                        'total_time': total_time,
+                        'mode': 'walking'
+                    }
+
+                    st.success("✅ 最適化避難ルートを算出しました！")
+                    st.rerun()
+
+                # 最適化ルート表示
+                if 'disaster_optimized_route' in st.session_state and st.session_state.disaster_optimized_route is not None:
+                    route_data = st.session_state.disaster_optimized_route
+                    route = route_data['route']
+                    total_dist = route_data['total_distance']
+                    total_time = route_data['total_time']
+
+                    st.markdown("---")
+                    st.markdown("### 📋 最適化された避難順序")
+
+                    # 統計情報
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("総移動距離", f"{total_dist:.2f} km")
+                    with col2:
+                        hours = int(total_time // 60)
+                        minutes = int(total_time % 60)
+                        st.metric("総所要時間", f"{hours}時間{minutes}分")
+
+                    # 訪問順序リスト（簡易版）
+                    with st.expander("📍 避難順序を確認", expanded=False):
+                        for i, idx in enumerate(route, 1):
+                            shelter_info = disaster_df.iloc[idx]
+                            st.write(f"{i}. {shelter_info['スポット名']} (収容: {shelter_info['収容人数']}名)")
+
+                    # Google Maps複数経由地リンク生成
+                    if len(route) > 0:
+                        origin = st.session_state.current_location
+
+                        if len(route) == 1:
+                            dest_shelter = disaster_df.iloc[route[0]]
+                            destination_coords = (dest_shelter['緯度'], dest_shelter['経度'])
+                            waypoints = []
+                        else:
+                            waypoints = []
+                            for idx in route[:-1]:
+                                shelter_info = disaster_df.iloc[idx]
+                                waypoints.append((shelter_info['緯度'], shelter_info['経度']))
+
+                            dest_shelter = disaster_df.iloc[route[-1]]
+                            destination_coords = (dest_shelter['緯度'], dest_shelter['経度'])
+
+                        maps_url = create_google_maps_multi_link(
+                            origin,
+                            waypoints,
+                            destination_coords,
+                            'walking'
                         )
 
-                        # セッション状態に保存
-                        st.session_state.disaster_optimized_route = {
-                            'route': route,
-                            'total_distance': total_dist,
-                            'total_time': total_time,
-                            'mode': 'walking'
-                        }
-
-                        st.success("✅ 最適化避難ルートを算出しました！")
-                        st.rerun()
-
-                    # 最適化ルート表示
-                    if 'disaster_optimized_route' in st.session_state and st.session_state.disaster_optimized_route is not None:
-                        route_data = st.session_state.disaster_optimized_route
-                        route = route_data['route']
-                        total_dist = route_data['total_distance']
-                        total_time = route_data['total_time']
-
-                        st.markdown("---")
-                        st.markdown("### 📋 最適化された避難順序")
-
-                        # 統計情報
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.metric("総移動距離", f"{total_dist:.2f} km")
-                        with col2:
-                            hours = int(total_time // 60)
-                            minutes = int(total_time % 60)
-                            st.metric("総所要時間", f"{hours}時間{minutes}分")
-
-                        # 訪問順序リスト（簡易版）
-                        with st.expander("📍 避難順序を確認", expanded=False):
-                            for i, idx in enumerate(route, 1):
-                                shelter_info = disaster_df.iloc[idx]
-                                st.write(f"{i}. {shelter_info['スポット名']} (収容: {shelter_info['収容人数']}名)")
-
-                        # Google Maps複数経由地リンク生成
-                        if len(route) > 0:
-                            origin = st.session_state.current_location
-
-                            if len(route) == 1:
-                                dest_shelter = disaster_df.iloc[route[0]]
-                                destination_coords = (dest_shelter['緯度'], dest_shelter['経度'])
-                                waypoints = []
-                            else:
-                                waypoints = []
-                                for idx in route[:-1]:
-                                    shelter_info = disaster_df.iloc[idx]
-                                    waypoints.append((shelter_info['緯度'], shelter_info['経度']))
-
-                                dest_shelter = disaster_df.iloc[route[-1]]
-                                destination_coords = (dest_shelter['緯度'], dest_shelter['経度'])
-
-                            maps_url = create_google_maps_multi_link(
-                                origin,
-                                waypoints,
-                                destination_coords,
-                                'walking'
-                            )
-
-                            st.link_button(
-                                "🚶 Google Mapで最適化避難ルートを開く",
-                                maps_url,
-                                use_container_width=True,
-                                type="primary"
-                            )
-
-                elif len(selected_shelters_names) == 1:
-                    st.warning("⚠️ 2つ以上の避難所を選択してください。")
-                else:
-                    st.info("👆 避難したい避難所を2つ以上選択してください。")
+                        st.link_button(
+                            "🚶 Google Mapで最適化避難ルートを開く",
+                            maps_url,
+                            use_container_width=True,
+                            type="primary"
+                        )
         
         with col_map:
             # 地図表示
+            # 選択された避難所のリストを渡す
             m = create_enhanced_map(
                 filtered_df,
                 st.session_state.current_location,
-                selected_spot=shelter if shelter != '選択してください' else None,
-                show_route=show_route
+                selected_spot=selected_shelters_names[0] if len(selected_shelters_names) == 1 else None,
+                show_route=show_route if 'show_route' in locals() else False,
+                selected_spots_list=selected_shelters_names if len(selected_shelters_names) > 0 else None
             )
             st_folium(m, width=700, height=600, key='disaster_map')
 
@@ -1364,18 +1357,21 @@ with st.expander("💡 使い方のヒント"):
 
     #### 観光モードでできること
     1. **地図でスポットを確認**: マップタブで日田市内の観光スポットを一覧表示
-    2. **目的地を選択**: 行きたい場所を選ぶと、距離と概算時間を表示
-    3. **最適化ルート**: 複数スポットを選択すると、待ち時間と距離を考慮した最適な訪問順序を算出
+    2. **スポットを選択**: 1つまたは複数のスポットを自由に選択
+       - 1つだけ選択：単一ルートを表示（距離・時間・詳細情報）
+       - 2つ以上選択：最適化ルートを算出（待ち時間と距離を考慮）
+    3. **カテゴリーフィルター**: 歴史、自然、グルメ、体験など、カテゴリー別に絞り込み。マップのピンも連動してフィルタリング
     4. **スポット検索**: スポット一覧タブでキーワード検索や並び替えが可能
     5. **天気情報**: 天気タブで気象情報サイトへアクセス
     6. **イベント情報**: 月別にイベントを確認できます
-    7. **人気ランキング**: 月別の人気観光地ランキングを確認
+    7. **おすすめスポット**: 日田市の人気観光地をランキング形式で表示
     8. **AIプラン提案**: Gemini APIを使って、予算・時間・興味に合わせた最適な観光プランを自動生成
-    9. **カテゴリーフィルター**: カテゴリーを選択すると、マップに表示されるピンもフィルタリングされます
 
     #### 防災モードでできること
     1. **最寄り避難所の確認**: 現在地から近い避難所を表示
-    2. **最適化避難ルート**: 複数の避難所を選択すると、最短距離での巡回順序を算出
+    2. **避難所を選択**: 1つまたは複数の避難所を自由に選択
+       - 1つだけ選択：単一ルートを表示（距離・時間・詳細情報）
+       - 2つ以上選択：最適化避難ルートを算出（最短距離）
     3. **避難ルート**: 徒歩での避難ルートをGoogle Mapsで確認
     4. **開設状況の確認**: 避難所の開設状況と収容人数をリアルタイム表示
     5. **営業店舗情報**: 災害時の営業中コンビニ・スーパーを確認
@@ -1394,8 +1390,9 @@ with st.expander("💡 使い方のヒント"):
     #### 便利な機能
     - **現在地の設定**: サイドバーから緯度・経度を入力、またはプリセット位置から選択
     - **カテゴリーフィルター**: 歴史、自然、グルメ、体験など、カテゴリー別に絞り込み。マップのピンも連動してフィルタリング
+    - **選択されたスポットの可視化**: 選択したスポットは赤いピンで表示され、視覚的に分かりやすい
     - **距離表示**: すべてのスポットに現在地からの距離を表示
-    - **直線表示**: 地図上で現在地から目的地への直線を表示可能
+    - **直線表示**: 地図上で現在地から目的地への直線を表示可能（単一選択時）
     - **待ち時間・混雑状況**: 飲食店や観光地の待ち時間と混雑状況を確認可能
 
     #### Google Maps連携について
