@@ -548,7 +548,7 @@ if st.session_state.mode == '観光モード':
             # 選択数に応じた処理
             if len(selected_spots_names) == 0:
                 # スポット未選択
-                st.info("👆 訪問したいスポットを選択してください")
+                st.info("↑ 訪問したいスポットを選択してください")
                 show_route = False
                 
             elif len(selected_spots_names) == 1:
@@ -1402,9 +1402,4 @@ with st.expander("💡 使い方のヒント"):
     - 最適化ルートでは複数の経由地を含むルートをGoogle Mapsで開くことができます
     """)
 
-# デバッグ情報（開発時のみ表示）
-if st.checkbox("🔧 デバッグ情報を表示", value=False):
-    st.json({
-        "現在地": st.session_state.current_location,
-        "モード": st.session_state.mode
-    })
+# 引用元、参考にしたサイト
