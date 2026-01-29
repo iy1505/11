@@ -491,15 +491,15 @@ with st.sidebar:
     
     # 統計情報
     if st.session_state.mode == '観光モード':
-        st.metric("登録スポット数", "6箇所")
+        st.metric("登録スポット数", "49箇所")
     else:
-        st.metric("避難所数", "5箇所")
+        st.metric("避難所数", "59箇所")
         st.metric("開設中", "3箇所", delta="安全")
 
 # メインコンテンツ
 # ページトップのタイトル
 st.title("🗺️ 日田なび")
-st.caption("Ver. 2.1 - 観光と防災におけるタイムパフォーマンスを向上")
+st.caption("Ver. 1.1 - 観光と防災におけるタイムパフォーマンスを向上")
 st.divider()
 
 # データ読み込み
