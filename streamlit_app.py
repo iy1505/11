@@ -493,7 +493,7 @@ with st.sidebar:
     if st.session_state.mode == '観光モード':
         st.metric("登録スポット数", "49箇所")
     else:
-        st.metric("避難所数", "59箇所")
+        st.metric("避難所数", "122箇所")
         st.metric("開設中", "3箇所", delta="安全")
 
 # メインコンテンツ
