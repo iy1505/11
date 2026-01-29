@@ -1075,7 +1075,7 @@ else:  # 防災モード
             # 選択数に応じた処理
             if len(selected_shelters_names) == 0:
                 # 避難所未選択
-                st.info("👆 避難所を選択してください")
+                st.info("↑ 避難所を選択してください")
                 show_route = False
                 
             elif len(selected_shelters_names) == 1:
