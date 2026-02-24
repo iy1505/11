@@ -5,6 +5,7 @@ from streamlit_folium import st_folium
 from datetime import datetime
 from math import radians, sin, cos, sqrt, atan2
 from typing import List, Tuple
+from gps_component import gps_locator  # GPS機能をインポート
 
 try:
     import google.generativeai as genai
@@ -407,6 +408,18 @@ with st.sidebar:
     
     # 現在地設定
     st.subheader("📍 現在地設定")
+    
+    # GPS取得コンポーネント
+    gps_data = gps_locator()
+    
+    # GPS データを受け取ったら更新
+    if gps_data and isinstance(gps_data, dict):
+        if 'latitude' in gps_data and 'longitude' in gps_data:
+            st.session_state.current_location = [gps_data['latitude'], gps_data['longitude']]
+            st.success(f"✅ GPS位置を設定しました (精度: ±{gps_data.get('accuracy', 0):.0f}m)")
+            st.rerun()
+    
+    st.divider()
     
     # プリセット位置
     preset_locations = {
@@ -1387,6 +1400,12 @@ with st.expander("💡 使い方のヒント"):
     - ユーザーが自身のAPIキーを入力（セッション中のみ保持）
     - 予算、時間、興味、同行者に基づいた具体的なプランを生成
 
+    #### GPS機能について
+    - **スマホで現在地を自動取得**: サイドバーの「🌐 GPS で現在地を取得」ボタンをタップ
+    - ブラウザが位置情報の使用許可を求めるので「許可」を選択
+    - 自動的に現在地の緯度・経度が設定されます
+    - HTTPS接続が必要（Streamlit Cloudでは自動的にHTTPS）
+
     #### 便利な機能
     - **現在地の設定**: サイドバーから緯度・経度を入力、またはプリセット位置から選択
     - **カテゴリーフィルター**: 歴史、自然、グルメ、体験など、カテゴリー別に絞り込み。マップのピンも連動してフィルタリング
@@ -1401,5 +1420,6 @@ with st.expander("💡 使い方のヒント"):
     - スマートフォンではGoogle Mapsアプリが自動的に開きます
     - 最適化ルートでは複数の経由地を含むルートをGoogle Mapsで開くことができます
     """)
+```
 
-# 引用元、参考にしたサイト
+## 
