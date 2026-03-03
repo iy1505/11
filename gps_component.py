@@ -44,26 +44,30 @@ def gps_locator():
                             const lng = position.coords.longitude;
                             const accuracy = position.coords.accuracy;
                             
-                            // URLパラメータに座標を追加してページをリロード
-                            const currentUrl = window.parent.location.href.split('?')[0];
-                            const newUrl = currentUrl + '?lat=' + lat + '&lng=' + lng + '&gps=true';
-                            window.parent.location.href = newUrl;
-                            
                             statusDiv.innerHTML = '✅ 現在地を取得しました<br>緯度: ' + lat.toFixed(6) + '<br>経度: ' + lng.toFixed(6) + '<br>精度: ±' + accuracy.toFixed(0) + 'm';
                             statusDiv.className = 'success';
+                            
+                            // URLパラメータに座標を追加してページをリロード
+                            setTimeout(function() {
+                                const currentUrl = window.parent.location.href.split('?')[0];
+                                const newUrl = currentUrl + '?lat=' + lat + '&lng=' + lng + '&gps=true';
+                                window.parent.location.href = newUrl;
+                            }, 1000);
                         },
                         function(error) {
                             let errorMsg = '';
                             switch(error.code) {
                                 case error.PERMISSION_DENIED:
-                                    errorMsg = '❌ 位置情報の使用が拒否されました';
+                                    errorMsg = '❌ 位置情報の使用が拒否されました。ブラウザの設定を確認してください。';
                                     break;
                                 case error.POSITION_UNAVAILABLE:
-                                    errorMsg = '❌ 位置情報が利用できません';
+                                    errorMsg = '❌ 位置情報が利用できません。';
                                     break;
                                 case error.TIMEOUT:
-                                    errorMsg = '❌ タイムアウトしました';
+                                    errorMsg = '❌ タイムアウトしました。もう一度お試しください。';
                                     break;
+                                default:
+                                    errorMsg = '❌ エラーが発生しました: ' + error.message;
                             }
                             statusDiv.innerHTML = errorMsg;
                             statusDiv.className = 'error';

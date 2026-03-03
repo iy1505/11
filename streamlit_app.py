@@ -396,12 +396,21 @@ from gps_component import gps_locator  # この行は残す
 
 # サイドバー
 with st.sidebar:
-    # ...（既存のコード）
+    # モード選択
+    mode = st.radio(
+        "モード選択",
+        ["観光モード", "防災モード"],
+        key='mode_selector'
+    )
+    st.session_state.mode = mode
     
+    st.divider()
+    
+    # 現在地設定
     st.subheader("📍 現在地設定")
     
     # GPS取得コンポーネント
-    gps_locator()  # 関数を呼び出すだけ
+    gps_locator()
     
     # URLパラメータから座標を取得
     query_params = st.query_params
@@ -410,48 +419,25 @@ with st.sidebar:
             new_lat = float(query_params['lat'])
             new_lng = float(query_params['lng'])
             
+            # 現在地を更新
             st.session_state.current_location = [new_lat, new_lng]
+            
+            # URLパラメータをクリア
             st.query_params.clear()
             
             st.success("✅ GPS位置を取得しました！")
             st.write(f"📍 緯度: {new_lat:.6f}")
             st.write(f"📍 経度: {new_lng:.6f}")
             
+            # ページをリロードして地図を更新
             st.rerun()
-        except:
-            pass
+        except Exception as e:
+            st.error(f"座標の取得に失敗しました: {e}")
     
-    st.info(f"現在地: {st.session_state.current_location[0]:.6f}, {st.session_state.current_location[1]:.6f}")
-    
-    st.divider()
-    
-    # 手動入力による位置設定
-    st.markdown("#### 手動で位置を設定")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        current_lat = st.number_input(
-            "緯度",
-            value=st.session_state.current_location[0],
-            format="%.6f",
-            key='lat_manual'
-        )
-    with col2:
-        current_lng = st.number_input(
-            "経度",
-            value=st.session_state.current_location[1],
-            format="%.6f",
-            key='lng_manual'
-        )
-    
-    if st.button("📍 手動で位置を更新", use_container_width=True):
-        st.session_state.current_location = [current_lat, current_lng]
-        st.success("✅ 位置を更新しました")
-        st.rerun()
+    # 現在の位置を表示
+    st.info(f"📍 現在地: 緯度 {st.session_state.current_location[0]:.6f}, 経度 {st.session_state.current_location[1]:.6f}")
     
     st.divider()
-    
-    # 以下、天気情報など既存のコードが続く...
     
     # 天気情報（シンプル版 - APIキー不要）
     st.subheader("🌤️ 天気情報")
