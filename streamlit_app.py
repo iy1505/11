@@ -410,12 +410,26 @@ with st.sidebar:
     # GPS取得コンポーネント
     gps_data = gps_locator()
     
+    # デバッグ用：GPS データの確認
+    if gps_data is not None:
+        st.write("GPS データ受信:", gps_data)  # デバッグ表示
+    
     # GPS データを受け取ったら自動更新
     if gps_data and isinstance(gps_data, dict):
         if 'latitude' in gps_data and 'longitude' in gps_data:
-            st.session_state.current_location = [gps_data['latitude'], gps_data['longitude']]
-            st.success(f"✅ GPS位置を取得しました (精度: ±{gps_data.get('accuracy', 0):.0f}m)")
-            st.rerun()
+            new_lat = gps_data['latitude']
+            new_lng = gps_data['longitude']
+            
+            # 現在地が変更された場合のみ更新
+            if (st.session_state.current_location[0] != new_lat or 
+                st.session_state.current_location[1] != new_lng):
+                
+                st.session_state.current_location = [new_lat, new_lng]
+                st.success(f"✅ GPS位置を取得しました！")
+                st.write(f"緯度: {new_lat:.6f}")
+                st.write(f"経度: {new_lng:.6f}")
+                st.write(f"精度: ±{gps_data.get('accuracy', 0):.0f}m")
+                st.rerun()
     
     st.divider()
     
@@ -444,6 +458,8 @@ with st.sidebar:
         st.rerun()
     
     st.divider()
+    
+    # 以下、天気情報など既存のコードが続く...
     
     # 天気情報（シンプル版 - APIキー不要）
     st.subheader("🌤️ 天気情報")
