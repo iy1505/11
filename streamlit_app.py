@@ -106,8 +106,6 @@ def load_spots_data():
         tourism_df['待ち時間（分）'] = pd.to_numeric(tourism_df['待ち時間（分）'], errors='coerce').fillna(0).astype(int)
         disaster_df['収容人数'] = pd.to_numeric(disaster_df['収容人数'], errors='coerce').fillna(0).astype(int)
         
-        
-
         return tourism_df, disaster_df
         
     except FileNotFoundError:
@@ -406,51 +404,49 @@ with st.sidebar:
     
     st.divider()
     
-# 現在地設定
-st.subheader("📍 現在地設定")
-
-# GPS取得コンポーネント
-gps_data = gps_locator()
-
-# GPS データを受け取ったら自動更新
-if gps_data and isinstance(gps_data, dict):
-    if 'latitude' in gps_data and 'longitude' in gps_data:
-        st.session_state.current_location = [gps_data['latitude'], gps_data['longitude']]
-        st.success(f"✅ GPS位置を取得しました (精度: ±{gps_data.get('accuracy', 0):.0f}m)")
-        # 緯度・経度の入力欄を自動更新するため、session_stateに保存
-        st.session_state.lat_input = gps_data['latitude']
-        st.session_state.lng_input = gps_data['longitude']
-
-st.divider()
-
-# 手動入力による位置設定
-st.markdown("#### 手動で位置を設定")
-
-col1, col2 = st.columns(2)
-with col1:
-    current_lat = st.number_input(
-        "緯度",
-        value=st.session_state.current_location[0],
-        format="%.6f",
-        key='lat_manual'
-    )
-with col2:
-    current_lng = st.number_input(
-        "経度",
-        value=st.session_state.current_location[1],
-        format="%.6f",
-        key='lng_manual'
-    )
-
-if st.button("📍 手動で位置を更新", use_container_width=True):
-    st.session_state.current_location = [current_lat, current_lng]
-    st.success("✅ 位置を更新しました")
-    st.rerun()
+    # 現在地設定
+    st.subheader("📍 現在地設定")
+    
+    # GPS取得コンポーネント
+    gps_data = gps_locator()
+    
+    # GPS データを受け取ったら自動更新
+    if gps_data and isinstance(gps_data, dict):
+        if 'latitude' in gps_data and 'longitude' in gps_data:
+            st.session_state.current_location = [gps_data['latitude'], gps_data['longitude']]
+            st.success(f"✅ GPS位置を取得しました (精度: ±{gps_data.get('accuracy', 0):.0f}m)")
+            st.rerun()
+    
+    st.divider()
+    
+    # 手動入力による位置設定
+    st.markdown("#### 手動で位置を設定")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        current_lat = st.number_input(
+            "緯度",
+            value=st.session_state.current_location[0],
+            format="%.6f",
+            key='lat_manual'
+        )
+    with col2:
+        current_lng = st.number_input(
+            "経度",
+            value=st.session_state.current_location[1],
+            format="%.6f",
+            key='lng_manual'
+        )
+    
+    if st.button("📍 手動で位置を更新", use_container_width=True):
+        st.session_state.current_location = [current_lat, current_lng]
+        st.success("✅ 位置を更新しました")
+        st.rerun()
     
     st.divider()
     
     # 天気情報（シンプル版 - APIキー不要）
-    st.subheader("🌤️ 天気情報（サンプルデータ）")
+    st.subheader("🌤️ 天気情報")
     
     # 現在の日時から天気アイコンを選択（サンプル）
     hour = datetime.now().hour
@@ -501,7 +497,7 @@ if st.button("📍 手動で位置を更新", use_container_width=True):
 # メインコンテンツ
 # ページトップのタイトル
 st.title("🗺️ 日田なび")
-st.caption("Ver. 1.1 - 観光と防災におけるタイムパフォーマンスを向上")
+st.caption("Ver. 1.2 - 観光と防災におけるタイムパフォーマンスを向上")
 st.divider()
 
 # データ読み込み
@@ -1389,14 +1385,15 @@ with st.expander("💡 使い方のヒント"):
     - ユーザーが自身のAPIキーを入力（セッション中のみ保持）
     - 予算、時間、興味、同行者に基づいた具体的なプランを生成
 
-    #### GPS機能について
+    #### GPS機能について（スマホ推奨）
     - **スマホで現在地を自動取得**: サイドバーの「🌐 GPS で現在地を取得」ボタンをタップ
     - ブラウザが位置情報の使用許可を求めるので「許可」を選択
-    - 自動的に現在地の緯度・経度が設定されます
+    - 自動的に現在地の緯度・経度が設定され、地図が更新されます
     - HTTPS接続が必要（Streamlit Cloudでは自動的にHTTPS）
+    - 手動で緯度・経度を入力することも可能です
 
     #### 便利な機能
-    - **現在地の設定**: サイドバーから緯度・経度を入力、またはプリセット位置から選択
+    - **現在地の設定**: サイドバーからGPSで自動取得、または手動で緯度・経度を入力
     - **カテゴリーフィルター**: 歴史、自然、グルメ、体験など、カテゴリー別に絞り込み。マップのピンも連動してフィルタリング
     - **選択されたスポットの可視化**: 選択したスポットは赤いピンで表示され、視覚的に分かりやすい
     - **距離表示**: すべてのスポットに現在地からの距離を表示
@@ -1409,5 +1406,3 @@ with st.expander("💡 使い方のヒント"):
     - スマートフォンではGoogle Mapsアプリが自動的に開きます
     - 最適化ルートでは複数の経由地を含むルートをGoogle Mapsで開くことができます
     """)
-
-## 
