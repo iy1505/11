@@ -430,7 +430,7 @@ with st.sidebar:
     }
     
     preset = st.selectbox(
-        "プリセット位置から選択",
+        "自身で位置を設定",
         ['カスタム'] + list(preset_locations.keys())
     )
     
