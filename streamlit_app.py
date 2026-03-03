@@ -406,57 +406,46 @@ with st.sidebar:
     
     st.divider()
     
-    # 現在地設定
-    st.subheader("📍 現在地設定")
-    
-    # GPS取得コンポーネント
-    gps_data = gps_locator()
-    
-    # GPS データを受け取ったら更新
-    if gps_data and isinstance(gps_data, dict):
-        if 'latitude' in gps_data and 'longitude' in gps_data:
-            st.session_state.current_location = [gps_data['latitude'], gps_data['longitude']]
-            st.success(f"✅ GPS位置を設定しました (精度: ±{gps_data.get('accuracy', 0):.0f}m)")
-            st.rerun()
-    
-    st.divider()
-    
-    # プリセット位置
-    preset_locations = {
-        '日田市中心部': [33.3219, 130.9414],
-        '豆田町': [33.3219, 130.9414],
-        '日田駅': [33.317236186236, 130.93873247325],
-        '日田高校': [33.32264003495134, 130.94450303877255]
-    }
-    
-    preset = st.selectbox(
-        "自身で位置を設定",
-        ['カスタム'] + list(preset_locations.keys())
+# 現在地設定
+st.subheader("📍 現在地設定")
+
+# GPS取得コンポーネント
+gps_data = gps_locator()
+
+# GPS データを受け取ったら自動更新
+if gps_data and isinstance(gps_data, dict):
+    if 'latitude' in gps_data and 'longitude' in gps_data:
+        st.session_state.current_location = [gps_data['latitude'], gps_data['longitude']]
+        st.success(f"✅ GPS位置を取得しました (精度: ±{gps_data.get('accuracy', 0):.0f}m)")
+        # 緯度・経度の入力欄を自動更新するため、session_stateに保存
+        st.session_state.lat_input = gps_data['latitude']
+        st.session_state.lng_input = gps_data['longitude']
+
+st.divider()
+
+# 手動入力による位置設定
+st.markdown("#### 手動で位置を設定")
+
+col1, col2 = st.columns(2)
+with col1:
+    current_lat = st.number_input(
+        "緯度",
+        value=st.session_state.current_location[0],
+        format="%.6f",
+        key='lat_manual'
     )
-    
-    if preset != 'カスタム':
-        st.session_state.current_location = preset_locations[preset]
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        current_lat = st.number_input(
-            "緯度",
-            value=st.session_state.current_location[0],
-            format="%.6f",
-            key='lat_input'
-        )
-    with col2:
-        current_lng = st.number_input(
-            "経度",
-            value=st.session_state.current_location[1],
-            format="%.6f",
-            key='lng_input'
-        )
-    
-    if st.button("📍 位置を更新", use_container_width=True):
-        st.session_state.current_location = [current_lat, current_lng]
-        st.success("✅ 位置を更新しました")
-        st.rerun()
+with col2:
+    current_lng = st.number_input(
+        "経度",
+        value=st.session_state.current_location[1],
+        format="%.6f",
+        key='lng_manual'
+    )
+
+if st.button("📍 手動で位置を更新", use_container_width=True):
+    st.session_state.current_location = [current_lat, current_lng]
+    st.success("✅ 位置を更新しました")
+    st.rerun()
     
     st.divider()
     
