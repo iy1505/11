@@ -392,44 +392,36 @@ def create_google_maps_multi_link(origin: List[float], waypoints: List[Tuple[flo
 
     return url
 
+from gps_component import gps_locator  # この行は残す
+
 # サイドバー
 with st.sidebar:
-    # モード選択
-    mode = st.radio(
-        "モード選択",
-        ["観光モード", "防災モード"],
-        key='mode_selector'
-    )
-    st.session_state.mode = mode
+    # ...（既存のコード）
     
-    st.divider()
-    
-    # 現在地設定
     st.subheader("📍 現在地設定")
     
     # GPS取得コンポーネント
-    gps_data = gps_locator()
+    gps_locator()  # 関数を呼び出すだけ
     
-    # デバッグ用：GPS データの確認
-    if gps_data is not None:
-        st.write("GPS データ受信:", gps_data)  # デバッグ表示
-    
-    # GPS データを受け取ったら自動更新
-    if gps_data and isinstance(gps_data, dict):
-        if 'latitude' in gps_data and 'longitude' in gps_data:
-            new_lat = gps_data['latitude']
-            new_lng = gps_data['longitude']
+    # URLパラメータから座標を取得
+    query_params = st.query_params
+    if 'gps' in query_params and 'lat' in query_params and 'lng' in query_params:
+        try:
+            new_lat = float(query_params['lat'])
+            new_lng = float(query_params['lng'])
             
-            # 現在地が変更された場合のみ更新
-            if (st.session_state.current_location[0] != new_lat or 
-                st.session_state.current_location[1] != new_lng):
-                
-                st.session_state.current_location = [new_lat, new_lng]
-                st.success(f"✅ GPS位置を取得しました！")
-                st.write(f"緯度: {new_lat:.6f}")
-                st.write(f"経度: {new_lng:.6f}")
-                st.write(f"精度: ±{gps_data.get('accuracy', 0):.0f}m")
-                st.rerun()
+            st.session_state.current_location = [new_lat, new_lng]
+            st.query_params.clear()
+            
+            st.success("✅ GPS位置を取得しました！")
+            st.write(f"📍 緯度: {new_lat:.6f}")
+            st.write(f"📍 経度: {new_lng:.6f}")
+            
+            st.rerun()
+        except:
+            pass
+    
+    st.info(f"現在地: {st.session_state.current_location[0]:.6f}, {st.session_state.current_location[1]:.6f}")
     
     st.divider()
     
