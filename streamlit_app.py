@@ -409,35 +409,67 @@ with st.sidebar:
     # 現在地設定
     st.subheader("📍 現在地設定")
     
+    # GPS座標をチェック（LocalStorageから）
+    check_gps_html = """
+    <script>
+        const lat = localStorage.getItem('gps_lat');
+        const lng = localStorage.getItem('gps_lng');
+        
+        if (lat && lng) {
+            // Streamlitのクエリパラメータに設定
+            const url = new URL(window.parent.location.href);
+            url.searchParams.set('gps_lat', lat);
+            url.searchParams.set('gps_lng', lng);
+            
+            // LocalStorageをクリア
+            localStorage.removeItem('gps_lat');
+            localStorage.removeItem('gps_lng');
+            localStorage.removeItem('gps_timestamp');
+            
+            // URLを更新
+            window.parent.history.replaceState({}, '', url);
+            
+            // ページをリロード
+            window.parent.location.reload();
+        }
+    </script>
+    """
+    
+    components.html(check_gps_html, height=0)
+    
+    # クエリパラメータから座標を取得
+    query_params = st.query_params
+    
+    if 'gps_lat' in query_params and 'gps_lng' in query_params:
+        try:
+            new_lat = float(query_params['gps_lat'])
+            new_lng = float(query_params['gps_lng'])
+            
+            # 現在地を更新
+            old_location = st.session_state.current_location.copy()
+            st.session_state.current_location = [new_lat, new_lng]
+            
+            # クエリパラメータをクリア
+            st.query_params.clear()
+            
+            # 位置が変わった場合のみリロード
+            if old_location[0] != new_lat or old_location[1] != new_lng:
+                st.success("✅ GPS位置を反映しました！")
+                st.write(f"📍 緯度: {new_lat:.6f}")
+                st.write(f"📍 経度: {new_lng:.6f}")
+                st.rerun()
+        except Exception as e:
+            st.error(f"エラー: {e}")
+    
     # GPS取得コンポーネント
     gps_locator()
     
-    # URLパラメータから座標を取得
-    query_params = st.query_params
-    if 'gps' in query_params and 'lat' in query_params and 'lng' in query_params:
-        try:
-            new_lat = float(query_params['lat'])
-            new_lng = float(query_params['lng'])
-            
-            # 現在地を更新
-            st.session_state.current_location = [new_lat, new_lng]
-            
-            # URLパラメータをクリア
-            st.query_params.clear()
-            
-            st.success("✅ GPS位置を取得しました！")
-            st.write(f"📍 緯度: {new_lat:.6f}")
-            st.write(f"📍 経度: {new_lng:.6f}")
-            
-            # ページをリロードして地図を更新
-            st.rerun()
-        except Exception as e:
-            st.error(f"座標の取得に失敗しました: {e}")
-    
     # 現在の位置を表示
-    st.info(f"📍 現在地: 緯度 {st.session_state.current_location[0]:.6f}, 経度 {st.session_state.current_location[1]:.6f}")
+    st.info(f"📍 現在地\n緯度: {st.session_state.current_location[0]:.6f}\n経度: {st.session_state.current_location[1]:.6f}")
     
     st.divider()
+    
+    # 以下、天気情報など既存のコード...
     
     # 天気情報（シンプル版 - APIキー不要）
     st.subheader("🌤️ 天気情報")

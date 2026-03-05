@@ -1,7 +1,13 @@
 import streamlit.components.v1 as components
+import streamlit as st
+import json
 
 def gps_locator():
     """GPSで現在地を取得するコンポーネント"""
+    
+    # ユニークなキーを生成
+    import time
+    component_key = f"gps_{int(time.time() * 1000)}"
     
     gps_html = """
     <!DOCTYPE html>
@@ -21,6 +27,7 @@ def gps_locator():
                 margin-bottom: 10px;
             }
             button:hover { background-color: #FF6B6B; }
+            button:disabled { background-color: #cccccc; cursor: not-allowed; }
             #status { padding: 10px; border-radius: 5px; font-size: 14px; margin-top: 10px; }
             .success { background-color: #D4EDDA; color: #155724; }
             .error { background-color: #F8D7DA; color: #721C24; }
@@ -28,14 +35,21 @@ def gps_locator():
         </style>
     </head>
     <body>
-        <button onclick="getLocation()">🌐 GPS で現在地を取得</button>
+        <button id="gpsBtn" onclick="getLocation()">🌐 GPS で現在地を取得</button>
         <div id="status"></div>
         
         <script>
+            let hasGotLocation = false;
+            
             function getLocation() {
+                if (hasGotLocation) return;
+                
                 const statusDiv = document.getElementById('status');
+                const btn = document.getElementById('gpsBtn');
+                
                 statusDiv.innerHTML = '📍 位置情報を取得中...';
                 statusDiv.className = 'info';
+                btn.disabled = true;
                 
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(
@@ -44,15 +58,20 @@ def gps_locator():
                             const lng = position.coords.longitude;
                             const accuracy = position.coords.accuracy;
                             
-                            statusDiv.innerHTML = '✅ 現在地を取得しました<br>緯度: ' + lat.toFixed(6) + '<br>経度: ' + lng.toFixed(6) + '<br>精度: ±' + accuracy.toFixed(0) + 'm';
+                            hasGotLocation = true;
+                            
+                            statusDiv.innerHTML = '✅ 現在地を取得しました<br>緯度: ' + lat.toFixed(6) + '<br>経度: ' + lng.toFixed(6) + '<br>精度: ±' + accuracy.toFixed(0) + 'm<br><br><strong>反映中...</strong>';
                             statusDiv.className = 'success';
                             
-                            // URLパラメータに座標を追加してページをリロード
+                            // LocalStorageに保存
+                            localStorage.setItem('gps_lat', lat);
+                            localStorage.setItem('gps_lng', lng);
+                            localStorage.setItem('gps_timestamp', Date.now());
+                            
+                            // ページをリロード
                             setTimeout(function() {
-                                const currentUrl = window.parent.location.href.split('?')[0];
-                                const newUrl = currentUrl + '?lat=' + lat + '&lng=' + lng + '&gps=true';
-                                window.parent.location.href = newUrl;
-                            }, 1000);
+                                window.parent.location.reload();
+                            }, 500);
                         },
                         function(error) {
                             let errorMsg = '';
@@ -71,17 +90,66 @@ def gps_locator():
                             }
                             statusDiv.innerHTML = errorMsg;
                             statusDiv.className = 'error';
+                            btn.disabled = false;
                         },
                         { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
                     );
                 } else {
                     statusDiv.innerHTML = '❌ このブラウザは位置情報に対応していません';
                     statusDiv.className = 'error';
+                    btn.disabled = false;
                 }
             }
+            
+            // ページ読み込み時にLocalStorageをチェック
+            window.onload = function() {
+                const lat = localStorage.getItem('gps_lat');
+                const lng = localStorage.getItem('gps_lng');
+                const timestamp = localStorage.getItem('gps_timestamp');
+                
+                if (lat && lng && timestamp) {
+                    const statusDiv = document.getElementById('status');
+                    const timeDiff = Date.now() - parseInt(timestamp);
+                    
+                    // 5秒以内の取得データなら表示
+                    if (timeDiff < 5000) {
+                        statusDiv.innerHTML = '✅ GPS座標を検出しました<br>緯度: ' + parseFloat(lat).toFixed(6) + '<br>経度: ' + parseFloat(lng).toFixed(6);
+                        statusDiv.className = 'success';
+                    }
+                }
+            };
         </script>
     </body>
     </html>
     """
     
-    components.html(gps_html, height=180)
+    components.html(gps_html, height=180, key=component_key)
+    
+    # LocalStorageから座標を読み取るスクリプト
+    read_html = f"""
+    <script>
+        const lat = localStorage.getItem('gps_lat');
+        const lng = localStorage.getItem('gps_lng');
+        const timestamp = localStorage.getItem('gps_timestamp');
+        
+        if (lat && lng && timestamp) {{
+            const timeDiff = Date.now() - parseInt(timestamp);
+            
+            // 5秒以内なら親ウィンドウに通知
+            if (timeDiff < 5000) {{
+                window.parent.postMessage({{
+                    type: 'gps_data',
+                    latitude: parseFloat(lat),
+                    longitude: parseFloat(lng)
+                }}, '*');
+                
+                // データを削除（一度だけ使用）
+                localStorage.removeItem('gps_lat');
+                localStorage.removeItem('gps_lng');
+                localStorage.removeItem('gps_timestamp');
+            }}
+        }}
+    </script>
+    """
+    
+    components.html(read_html, height=0)
