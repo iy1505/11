@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import folium
+import streamlit.components.v1 as components
 from streamlit_folium import st_folium
 from datetime import datetime
 from math import radians, sin, cos, sqrt, atan2
@@ -468,8 +469,6 @@ with st.sidebar:
     st.info(f"📍 現在地\n緯度: {st.session_state.current_location[0]:.6f}\n経度: {st.session_state.current_location[1]:.6f}")
     
     st.divider()
-    
-    # 以下、天気情報など既存のコード...
     
     # 天気情報（シンプル版 - APIキー不要）
     st.subheader("🌤️ 天気情報")
