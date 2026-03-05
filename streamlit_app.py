@@ -400,7 +400,7 @@ with st.sidebar:
     # モード選択
     mode = st.radio(
         "モード選択",
-        ["観光モード", "防災モード"],
+        ["### 観光モード", "### 防災モード"],
         key='mode_selector'
     )
     st.session_state.mode = mode
