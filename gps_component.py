@@ -1,13 +1,7 @@
 import streamlit.components.v1 as components
-import streamlit as st
-import json
 
 def gps_locator():
     """GPSで現在地を取得するコンポーネント"""
-    
-    # ユニークなキーを生成
-    import time
-    component_key = f"gps_{int(time.time() * 1000)}"
     
     gps_html = """
     <!DOCTYPE html>
@@ -123,33 +117,5 @@ def gps_locator():
     </html>
     """
     
-    components.html(gps_html, height=180, key=component_key)
-    
-    # LocalStorageから座標を読み取るスクリプト
-    read_html = f"""
-    <script>
-        const lat = localStorage.getItem('gps_lat');
-        const lng = localStorage.getItem('gps_lng');
-        const timestamp = localStorage.getItem('gps_timestamp');
-        
-        if (lat && lng && timestamp) {{
-            const timeDiff = Date.now() - parseInt(timestamp);
-            
-            // 5秒以内なら親ウィンドウに通知
-            if (timeDiff < 5000) {{
-                window.parent.postMessage({{
-                    type: 'gps_data',
-                    latitude: parseFloat(lat),
-                    longitude: parseFloat(lng)
-                }}, '*');
-                
-                // データを削除（一度だけ使用）
-                localStorage.removeItem('gps_lat');
-                localStorage.removeItem('gps_lng');
-                localStorage.removeItem('gps_timestamp');
-            }}
-        }}
-    </script>
-    """
-    
-    components.html(read_html, height=0)
+    # keyパラメータを削除
+    components.html(gps_html, height=180)
