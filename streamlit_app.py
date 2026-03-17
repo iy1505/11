@@ -546,72 +546,72 @@ if st.session_state.mode == '観光モード':
         col_map, col_control = st.columns([3, 1])
         
         with col_control:
-    st.markdown("### 🎯 目的地選択")
+            st.markdown("### 🎯 目的地選択")
 
-    # カテゴリーフィルター
-    categories = ['すべて'] + sorted(tourism_df['カテゴリ'].unique().tolist())
-    selected_category = st.selectbox("カテゴリー", categories, key='map_category')
+            # カテゴリーフィルター
+            categories = ['すべて'] + sorted(tourism_df['カテゴリ'].unique().tolist())
+            selected_category = st.selectbox("カテゴリー", categories, key='map_category')
 
-    # フィルター適用
-    if selected_category != 'すべて':
-        filtered_df = tourism_df[tourism_df['カテゴリ'] == selected_category]
-    else:
-        filtered_df = tourism_df
+            # フィルター適用
+            if selected_category != 'すべて':
+                filtered_df = tourism_df[tourism_df['カテゴリ'] == selected_category]
+            else:
+                filtered_df = tourism_df
 
-    # 距離を計算して並び替え
-    filtered_df_with_distance = filtered_df.copy()
-    filtered_df_with_distance['距離'] = filtered_df_with_distance.apply(
-        lambda row: calculate_distance(
-            st.session_state.current_location[0],
-            st.session_state.current_location[1],
-            row['緯度'],
-            row['経度']
-        ),
-        axis=1
-    )
-    
-    # 並び替えオプション
-    sort_option = st.radio(
-        "並び替え",
-        ["距離が近い順", "名前順"],
-        key='map_sort_option',
-        horizontal=True
-    )
-    
-    if sort_option == "距離が近い順":
-        filtered_df_sorted = filtered_df_with_distance.sort_values('距離')
-        spot_list = [f"{row['スポット名']} ({row['距離']:.2f}km)" for _, row in filtered_df_sorted.iterrows()]
-    else:
-        filtered_df_sorted = filtered_df_with_distance.sort_values('スポット名')
-        spot_list = filtered_df_sorted['スポット名'].tolist()
+            # 距離を計算して並び替え
+            filtered_df_with_distance = filtered_df.copy()
+            filtered_df_with_distance['距離'] = filtered_df_with_distance.apply(
+                lambda row: calculate_distance(
+                    st.session_state.current_location[0],
+                    st.session_state.current_location[1],
+                    row['緯度'],
+                    row['経度']
+                ),
+                axis=1
+            )
+            
+            # 並び替えオプション
+            sort_option = st.radio(
+                "並び替え",
+                ["距離が近い順", "名前順"],
+                key='map_sort_option',
+                horizontal=True
+            )
+            
+            if sort_option == "距離が近い順":
+                filtered_df_sorted = filtered_df_with_distance.sort_values('距離')
+                spot_list = [f"{row['スポット名']} ({row['距離']:.2f}km)" for _, row in filtered_df_sorted.iterrows()]
+            else:
+                filtered_df_sorted = filtered_df_with_distance.sort_values('スポット名')
+                spot_list = filtered_df_sorted['スポット名'].tolist()
 
-    # 複数スポット選択（0個以上選択可能）
-    selected_spots_display = st.multiselect(
-        "訪問したいスポットを選択",
-        spot_list,
-        default=[],
-        key='map_multi_select',
-        help="1つだけ選択した場合は単一ルート、2つ以上選択した場合は最適化ルートを表示します"
-    )
-    
-    # 表示名からスポット名を抽出（距離表示を除去）
-    selected_spots_names = []
-    for display_name in selected_spots_display:
-        # "(距離)" の部分を削除
-        spot_name = display_name.split(' (')[0] if '(' in display_name else display_name
-        selected_spots_names.append(spot_name)
+            # 複数スポット選択（0個以上選択可能）
+            selected_spots_display = st.multiselect(
+                "訪問したいスポットを選択",
+                spot_list,
+                default=[],
+                key='map_multi_select',
+                help="1つだけ選択した場合は単一ルート、2つ以上選択した場合は最適化ルートを表示します"
+            )
+            
+            # 表示名からスポット名を抽出（距離表示を除去）
+            selected_spots_names = []
+            for display_name in selected_spots_display:
+                # "(距離)" の部分を削除
+                spot_name = display_name.split(' (')[0] if '(' in display_name else display_name
+                selected_spots_names.append(spot_name)
 
-    # 以下、既存のコード（選択数に応じた処理）をそのまま続ける
-    # 選択数に応じた処理
-    if len(selected_spots_names) == 0:
-        # スポット未選択
-        st.info("↑ 訪問したいスポットを選択してください")
-        show_route = False
-        
-    elif len(selected_spots_names) == 1:
-        # 単一スポット選択モード
-        destination = selected_spots_names[0]
-        dest_row = filtered_df[filtered_df['スポット名'] == destination].iloc[0]
+            # 選択数に応じた処理
+            if len(selected_spots_names) == 0:
+                # スポット未選択
+                st.info("↑ 訪問したいスポットを選択してください")
+                show_route = False
+                
+            elif len(selected_spots_names) == 1:
+                # 単一スポット選択モード
+                destination = selected_spots_names[0]
+                dest_row = filtered_df[filtered_df['スポット名'] == destination].iloc[0]
+                dest_coords = (dest_row['緯度'], dest_row['経度'])
 
                 # 情報表示
                 st.info(f"📍 **{destination}**")
@@ -671,6 +671,111 @@ if st.session_state.mode == '観光モード':
                     use_container_width=True,
                     type="primary"
                 )
+
+                # 地図上に直線ルートを表示
+                show_route = st.checkbox("地図上に直線を表示", value=True, key='map_show_route')
+                
+            else:
+                # 複数スポット選択モード（2つ以上）
+                destination = None
+                show_route = False
+
+                st.markdown("### 🎯 複数スポット選択中")
+                st.success(f"✅ {len(selected_spots_names)}箇所のスポットを選択中")
+
+                # 移動手段選択
+                travel_mode_opt = st.selectbox(
+                    "🚗 移動手段",
+                    ["driving", "walking", "bicycling", "transit"],
+                    format_func=lambda x: {
+                        'driving': '🚗 車',
+                        'walking': '🚶 徒歩',
+                        'bicycling': '🚲 自転車',
+                        'transit': '🚌 公共交通'
+                    }[x],
+                    key='map_opt_travel_mode'
+                )
+
+                if st.button("🎯 最適化ルートを算出", type="primary", use_container_width=True, key='map_optimize_btn'):
+                    # 選択されたスポットのインデックスを取得
+                    selected_indices = []
+                    for spot_name in selected_spots_names:
+                        idx = tourism_df[tourism_df['スポット名'] == spot_name].index[0]
+                        selected_indices.append(idx)
+
+                    # 最適化ルート算出
+                    route, total_dist, total_time = optimize_route_tourism(
+                        st.session_state.current_location,
+                        tourism_df,
+                        selected_indices
+                    )
+
+                    # セッション状態に保存
+                    st.session_state.map_optimized_route = {
+                        'route': route,
+                        'total_distance': total_dist,
+                        'total_time': total_time,
+                        'mode': travel_mode_opt
+                    }
+
+                    st.success("✅ 最適化ルートを算出しました！")
+                    st.rerun()
+
+                # 最適化ルート表示
+                if 'map_optimized_route' in st.session_state and st.session_state.map_optimized_route is not None:
+                    route_data = st.session_state.map_optimized_route
+                    route = route_data['route']
+                    total_dist = route_data['total_distance']
+                    total_time = route_data['total_time']
+
+                    st.markdown("---")
+                    st.markdown("### 📋 最適化された訪問順序")
+
+                    # 統計情報
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("総移動距離", f"{total_dist:.2f} km")
+                    with col2:
+                        hours = int(total_time // 60)
+                        minutes = int(total_time % 60)
+                        st.metric("総所要時間", f"{hours}時間{minutes}分")
+
+                    # 訪問順序リスト（簡易版）
+                    with st.expander("📍 訪問順序を確認", expanded=False):
+                        for i, idx in enumerate(route, 1):
+                            spot = tourism_df.iloc[idx]
+                            st.write(f"{i}. {spot['スポット名']}")
+
+                    # Google Maps複数経由地リンク生成
+                    if len(route) > 0:
+                        origin = st.session_state.current_location
+
+                        if len(route) == 1:
+                            dest_spot = tourism_df.iloc[route[0]]
+                            destination_coords = (dest_spot['緯度'], dest_spot['経度'])
+                            waypoints = []
+                        else:
+                            waypoints = []
+                            for idx in route[:-1]:
+                                spot = tourism_df.iloc[idx]
+                                waypoints.append((spot['緯度'], spot['経度']))
+
+                            dest_spot = tourism_df.iloc[route[-1]]
+                            destination_coords = (dest_spot['緯度'], dest_spot['経度'])
+
+                        maps_url = create_google_maps_multi_link(
+                            origin,
+                            waypoints,
+                            destination_coords,
+                            route_data['mode']
+                        )
+
+                        st.link_button(
+                            "🗺️ Google Mapで最適化ルートを開く",
+                            maps_url,
+                            use_container_width=True,
+                            type="primary"
+                        )
 
                 # 地図上に直線ルートを表示
                 show_route = st.checkbox("地図上に直線を表示", value=True, key='map_show_route')
