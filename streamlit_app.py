@@ -546,38 +546,72 @@ if st.session_state.mode == '観光モード':
         col_map, col_control = st.columns([3, 1])
         
         with col_control:
-            st.markdown("### 🎯 目的地選択")
+    st.markdown("### 🎯 目的地選択")
 
-            # カテゴリーフィルター
-            categories = ['すべて'] + sorted(tourism_df['カテゴリ'].unique().tolist())
-            selected_category = st.selectbox("カテゴリー", categories, key='map_category')
+    # カテゴリーフィルター
+    categories = ['すべて'] + sorted(tourism_df['カテゴリ'].unique().tolist())
+    selected_category = st.selectbox("カテゴリー", categories, key='map_category')
 
-            # フィルター適用
-            if selected_category != 'すべて':
-                filtered_df = tourism_df[tourism_df['カテゴリ'] == selected_category]
-            else:
-                filtered_df = tourism_df
+    # フィルター適用
+    if selected_category != 'すべて':
+        filtered_df = tourism_df[tourism_df['カテゴリ'] == selected_category]
+    else:
+        filtered_df = tourism_df
 
-            # 複数スポット選択（0個以上選択可能）
-            selected_spots_names = st.multiselect(
-                "訪問したいスポットを選択",
-                filtered_df['スポット名'].tolist(),
-                default=[],
-                key='map_multi_select',
-                help="1つだけ選択した場合は単一ルート、2つ以上選択した場合は最適化ルートを表示します"
-            )
+    # 距離を計算して並び替え
+    filtered_df_with_distance = filtered_df.copy()
+    filtered_df_with_distance['距離'] = filtered_df_with_distance.apply(
+        lambda row: calculate_distance(
+            st.session_state.current_location[0],
+            st.session_state.current_location[1],
+            row['緯度'],
+            row['経度']
+        ),
+        axis=1
+    )
+    
+    # 並び替えオプション
+    sort_option = st.radio(
+        "並び替え",
+        ["距離が近い順", "名前順"],
+        key='map_sort_option',
+        horizontal=True
+    )
+    
+    if sort_option == "距離が近い順":
+        filtered_df_sorted = filtered_df_with_distance.sort_values('距離')
+        spot_list = [f"{row['スポット名']} ({row['距離']:.2f}km)" for _, row in filtered_df_sorted.iterrows()]
+    else:
+        filtered_df_sorted = filtered_df_with_distance.sort_values('スポット名')
+        spot_list = filtered_df_sorted['スポット名'].tolist()
 
-            # 選択数に応じた処理
-            if len(selected_spots_names) == 0:
-                # スポット未選択
-                st.info("↑ 訪問したいスポットを選択してください")
-                show_route = False
-                
-            elif len(selected_spots_names) == 1:
-                # 単一スポット選択モード
-                destination = selected_spots_names[0]
-                dest_row = filtered_df[filtered_df['スポット名'] == destination].iloc[0]
-                dest_coords = (dest_row['緯度'], dest_row['経度'])
+    # 複数スポット選択（0個以上選択可能）
+    selected_spots_display = st.multiselect(
+        "訪問したいスポットを選択",
+        spot_list,
+        default=[],
+        key='map_multi_select',
+        help="1つだけ選択した場合は単一ルート、2つ以上選択した場合は最適化ルートを表示します"
+    )
+    
+    # 表示名からスポット名を抽出（距離表示を除去）
+    selected_spots_names = []
+    for display_name in selected_spots_display:
+        # "(距離)" の部分を削除
+        spot_name = display_name.split(' (')[0] if '(' in display_name else display_name
+        selected_spots_names.append(spot_name)
+
+    # 以下、既存のコード（選択数に応じた処理）をそのまま続ける
+    # 選択数に応じた処理
+    if len(selected_spots_names) == 0:
+        # スポット未選択
+        st.info("↑ 訪問したいスポットを選択してください")
+        show_route = False
+        
+    elif len(selected_spots_names) == 1:
+        # 単一スポット選択モード
+        destination = selected_spots_names[0]
+        dest_row = filtered_df[filtered_df['スポット名'] == destination].iloc[0]
 
                 # 情報表示
                 st.info(f"📍 **{destination}**")
@@ -1068,43 +1102,77 @@ else:  # 防災モード
         col_map, col_control = st.columns([3, 1])
         
         with col_control:
-            st.markdown("### 🚨 避難所情報")
+    st.markdown("### 🚨 避難所情報")
 
-            # 状態フィルター
-            status_filter = st.radio(
-                "表示する避難所",
-                ["すべて", "開設中のみ", "待機中のみ"],
-                key='disaster_status_filter'
-            )
+    # 状態フィルター
+    status_filter = st.radio(
+        "表示する避難所",
+        ["すべて", "開設中のみ", "待機中のみ"],
+        key='disaster_status_filter'
+    )
 
-            # フィルター適用
-            if status_filter == "開設中のみ":
-                filtered_df = disaster_df[disaster_df['状態'] == '開設中']
-            elif status_filter == "待機中のみ":
-                filtered_df = disaster_df[disaster_df['状態'] == '待機中']
-            else:
-                filtered_df = disaster_df
+    # フィルター適用
+    if status_filter == "開設中のみ":
+        filtered_df = disaster_df[disaster_df['状態'] == '開設中']
+    elif status_filter == "待機中のみ":
+        filtered_df = disaster_df[disaster_df['状態'] == '待機中']
+    else:
+        filtered_df = disaster_df
 
-            # 複数避難所選択（0個以上選択可能）
-            selected_shelters_names = st.multiselect(
-                "避難所を選択",
-                filtered_df['スポット名'].tolist(),
-                default=[],
-                key='disaster_multi_select',
-                help="1つだけ選択した場合は単一ルート、2つ以上選択した場合は最適化避難ルートを表示します"
-            )
+    # 距離を計算して並び替え
+    filtered_df_with_distance = filtered_df.copy()
+    filtered_df_with_distance['距離'] = filtered_df_with_distance.apply(
+        lambda row: calculate_distance(
+            st.session_state.current_location[0],
+            st.session_state.current_location[1],
+            row['緯度'],
+            row['経度']
+        ),
+        axis=1
+    )
+    
+    # 並び替えオプション
+    sort_option = st.radio(
+        "並び替え",
+        ["距離が近い順", "名前順"],
+        key='disaster_sort_option',
+        horizontal=True
+    )
+    
+    if sort_option == "距離が近い順":
+        filtered_df_sorted = filtered_df_with_distance.sort_values('距離')
+        shelter_list = [f"{row['スポット名']} ({row['距離']:.2f}km)" for _, row in filtered_df_sorted.iterrows()]
+    else:
+        filtered_df_sorted = filtered_df_with_distance.sort_values('スポット名')
+        shelter_list = filtered_df_sorted['スポット名'].tolist()
 
-            # 選択数に応じた処理
-            if len(selected_shelters_names) == 0:
-                # 避難所未選択
-                st.info("↑ 避難所を選択してください")
-                show_route = False
-                
-            elif len(selected_shelters_names) == 1:
-                # 単一避難所選択モード
-                shelter = selected_shelters_names[0]
-                shelter_row = filtered_df[filtered_df['スポット名'] == shelter].iloc[0]
-                shelter_coords = (shelter_row['緯度'], shelter_row['経度'])
+    # 複数避難所選択（0個以上選択可能）
+    selected_shelters_display = st.multiselect(
+        "避難所を選択",
+        shelter_list,
+        default=[],
+        key='disaster_multi_select',
+        help="1つだけ選択した場合は単一ルート、2つ以上選択した場合は最適化避難ルートを表示します"
+    )
+    
+    # 表示名から避難所名を抽出（距離表示を除去）
+    selected_shelters_names = []
+    for display_name in selected_shelters_display:
+        # "(距離)" の部分を削除
+        shelter_name = display_name.split(' (')[0] if '(' in display_name else display_name
+        selected_shelters_names.append(shelter_name)
+
+    # 以下、既存のコード（選択数に応じた処理）をそのまま続ける
+    # 選択数に応じた処理
+    if len(selected_shelters_names) == 0:
+        # 避難所未選択
+        st.info("↑ 避難所を選択してください")
+        show_route = False
+        
+    elif len(selected_shelters_names) == 1:
+        # 単一避難所選択モード
+        shelter = selected_shelters_names[0]
+        shelter_row = filtered_df[filtered_df['スポット名'] == shelter].iloc[0]
 
                 # 情報表示
                 st.warning(f"🏥 **{shelter}**")
