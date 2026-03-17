@@ -1309,68 +1309,68 @@ else:  # 防災モード
             st.success("すべて稼働中")
         
         st.divider()
+        
+        st.markdown("### 🎒 AI防災グッズ提案")
 
-st.markdown("### 🎒 AI防災グッズ提案")
+        st.info("💡 Gemini AIがあなたの予算や状況に合わせた最適な防災グッズを提案します")
 
-st.info("💡 Gemini AIがあなたの予算や状況に合わせた最適な防災グッズを提案します")
+        # 条件入力
+        col1, col2 = st.columns(2)
+        with col1:
+            disaster_budget = st.selectbox(
+                "💰 予算",
+                ["3,000円以下", "3,000～10,000円", "10,000～30,000円", "30,000円以上"],
+                key='disaster_budget_select'
+            )
+            
+            household_size = st.selectbox(
+                "👥 家族構成",
+                ["一人暮らし", "二人暮らし", "3～4人家族", "5人以上の家族"],
+                key='household_size'
+            )
 
-# 条件入力
-col1, col2 = st.columns(2)
-with col1:
-    disaster_budget = st.selectbox(
-        "💰 予算",
-        ["3,000円以下", "3,000～10,000円", "10,000～30,000円", "30,000円以上"],
-        key='disaster_budget_select'
-    )
-    
-    household_size = st.selectbox(
-        "👥 家族構成",
-        ["一人暮らし", "二人暮らし", "3～4人家族", "5人以上の家族"],
-        key='household_size'
-    )
+        with col2:
+            living_situation = st.selectbox(
+                "🏠 住居タイプ",
+                ["マンション・アパート", "一戸建て", "高層階（5階以上）", "1階・低層階"],
+                key='living_situation'
+            )
+            
+            priority = st.multiselect(
+                "🎯 重視する項目（複数選択可）",
+                ["持ち運びやすさ", "長期保存", "衛生面", "通信手段", "照明・電源", "食料・水"],
+                default=["食料・水"],
+                key='disaster_priority'
+            )
 
-with col2:
-    living_situation = st.selectbox(
-        "🏠 住居タイプ",
-        ["マンション・アパート", "一戸建て", "高層階（5階以上）", "1階・低層階"],
-        key='living_situation'
-    )
-    
-    priority = st.multiselect(
-        "🎯 重視する項目（複数選択可）",
-        ["持ち運びやすさ", "長期保存", "衛生面", "通信手段", "照明・電源", "食料・水"],
-        default=["食料・水"],
-        key='disaster_priority'
-    )
+        # その他の要望
+        additional_requirements = st.text_area(
+            "💬 その他の要望（任意）",
+            placeholder="例: ペットがいる、小さい子供がいる、高齢者と同居、アレルギーがある、など",
+            height=80,
+            key='disaster_additional'
+        )
 
-# その他の要望
-additional_requirements = st.text_area(
-    "💬 その他の要望（任意）",
-    placeholder="例: ペットがいる、小さい子供がいる、高齢者と同居、アレルギーがある、など",
-    height=80,
-    key='disaster_additional'
-)
+        # AI提案ボタン
+        if st.button("🤖 AI防災グッズ提案を生成", type="primary", use_container_width=True, key='disaster_ai_btn'):
+            if not GENAI_AVAILABLE:
+                st.error("❌ google-generativeai パッケージがインストールされていません。")
+                st.info("以下のコマンドでインストールしてください: `pip install google-generativeai`")
+            elif not st.session_state.gemini_api_key:
+                st.warning("⚠️ AIプラン提案タブでGemini APIキーを設定してください")
+                st.markdown("👉 **観光モード** → **AIプラン提案タブ** → **APIキー設定**")
+            else:
+                try:
+                    with st.spinner("🤖 AIが防災グッズを提案中..."):
+                        # Gemini API設定
+                        genai.configure(api_key=st.session_state.gemini_api_key)
+                        model = genai.GenerativeModel('gemini-2.0-flash-exp')
 
-# AI提案ボタン
-if st.button("🤖 AI防災グッズ提案を生成", type="primary", use_container_width=True, key='disaster_ai_btn'):
-    if not GENAI_AVAILABLE:
-        st.error("❌ google-generativeai パッケージがインストールされていません。")
-        st.info("以下のコマンドでインストールしてください: `pip install google-generativeai`")
-    elif not st.session_state.gemini_api_key:
-        st.warning("⚠️ AIプラン提案タブでGemini APIキーを設定してください")
-        st.markdown("👉 **観光モード** → **AIプラン提案タブ** → **APIキー設定**")
-    else:
-        try:
-            with st.spinner("🤖 AIが防災グッズを提案中..."):
-                # Gemini API設定
-                genai.configure(api_key=st.session_state.gemini_api_key)
-                model = genai.GenerativeModel('gemini-2.0-flash-exp')
-
-                # プロンプト作成
-                system_prompt = """あなたは防災の専門家です。ユーザーの予算、家族構成、住居状況、優先項目に基づいて、
+                        # プロンプト作成
+                        system_prompt = """あなたは防災の専門家です。ユーザーの予算、家族構成、住居状況、優先項目に基づいて、
 実用的で具体的な防災グッズのリストを提案してください。各商品には概算価格も含めてください。"""
 
-                user_prompt = f"""
+                        user_prompt = f"""
 以下の条件に基づいて、防災グッズのおすすめリストを作成してください：
 
 【条件】
@@ -1389,22 +1389,22 @@ if st.button("🤖 AI防災グッズ提案を生成", type="primary", use_contai
 実用的で、すぐに購入できる具体的な商品名を挙げてください。
 """
 
-                # API呼び出し
-                response = model.generate_content(f"{system_prompt}\n\n{user_prompt}")
+                        # API呼び出し
+                        response = model.generate_content(f"{system_prompt}\n\n{user_prompt}")
 
-                # 結果表示
-                st.markdown("---")
-                st.markdown("### 📋 AI提案：あなたに最適な防災グッズ")
-                st.markdown(response.text)
+                        # 結果表示
+                        st.markdown("---")
+                        st.markdown("### 📋 AI提案：あなたに最適な防災グッズ")
+                        st.markdown(response.text)
 
-                st.success("✅ 提案完了！")
-                
-                # 注意事項
-                st.info("💡 **購入前の確認事項**\n- 価格は目安です。購入時に最新価格を確認してください\n- 賞味期限・使用期限を定期的にチェックしましょう\n- 家族で避難場所や連絡方法を事前に話し合いましょう")
+                        st.success("✅ 提案完了！")
+                        
+                        # 注意事項
+                        st.info("💡 **購入前の確認事項**\n- 価格は目安です。購入時に最新価格を確認してください\n- 賞味期限・使用期限を定期的にチェックしましょう\n- 家族で避難場所や連絡方法を事前に話し合いましょう")
 
-        except Exception as e:
-            st.error(f"❌ エラーが発生しました: {str(e)}")
-            st.info("💡 APIキーが正しいか確認してください")
+                except Exception as e:
+                    st.error(f"❌ エラーが発生しました: {str(e)}")
+                    st.info("💡 APIキーが正しいか確認してください")
         
         st.divider()
         
