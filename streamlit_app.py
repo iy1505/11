@@ -777,16 +777,16 @@ if st.session_state.mode == '観光モード':
                             type="primary"
                         )
 
-                # 地図上に直線ルートを表示
+               # 地図上に直線ルートを表示
                 show_route = st.checkbox("地図上に直線を表示", value=True, key='disaster_show_route')
                 
             else:  
-                # 複数スポット選択モード（2つ以上）
-                destination = None
+                # 複数避難所選択モード（2つ以上）
+                shelter = None
                 show_route = False
 
-                st.markdown("### 🎯 複数スポット選択中")
-                st.success(f"✅ {len(selected_spots_names)}箇所のスポットを選択中")
+                st.markdown("### 🎯 複数避難所選択中")
+                st.success(f"✅ {len(selected_shelters_names)}箇所の避難所を選択中")
 
                 # 移動手段選択
                 travel_mode_opt = st.selectbox(
