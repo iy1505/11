@@ -778,9 +778,9 @@ if st.session_state.mode == '観光モード':
                         )
 
                 # 地図上に直線ルートを表示
-                show_route = st.checkbox("地図上に直線を表示", value=True, key='map_show_route')
+                show_route = st.checkbox("地図上に直線を表示", value=True, key='disaster_show_route')
                 
-            else:
+            else:  
                 # 複数スポット選択モード（2つ以上）
                 destination = None
                 show_route = False
